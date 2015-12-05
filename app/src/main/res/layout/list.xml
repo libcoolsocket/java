@@ -1,0 +1,16 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+	android:paddingLeft="@dimen/abc_dialog_padding_material"
+	android:paddingRight="@dimen/abc_dialog_padding_material"
+	android:paddingTop="10dp"
+	android:paddingBottom="10dp">
+
+	<TextView
+		android:layout_centerVertical="true"
+		android:layout_height="wrap_content"
+		android:layout_width="wrap_content"
+		android:id="@+id/list_text"
+	/>
+
+</RelativeLayout>
