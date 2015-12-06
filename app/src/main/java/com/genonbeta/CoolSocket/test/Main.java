@@ -12,6 +12,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 import javax.xml.transform.*;
+import com.genonbeta.CoolSocket.test.adapter.*;
 
 public class Main extends AppCompatActivity
 {
@@ -32,7 +33,7 @@ public class Main extends AppCompatActivity
 	private ListView mListView;
 
 	private ArrayList<String> mList = new ArrayList<String>();
-	private ArrayAdapter<String> mAdapter;
+	private MessageListAdapter mAdapter;
 
 	public void addMessage(String message)
 	{
@@ -60,7 +61,7 @@ public class Main extends AppCompatActivity
 		mEditTextPort = (EditText) findViewById(R.id.mainPort);
 
 		mListView = (ListView) findViewById(R.id.mainListView);
-		mAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mList);
+		mAdapter = new MessageListAdapter(this, mList);
 
 		mEditText.setOnKeyListener(
 			new View.OnKeyListener()
