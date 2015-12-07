@@ -35,6 +35,9 @@
         <activity
             android:name="com.genonbeta.CoolSocket.test.PairFinder"
             android:label="Pair Finder" />
+        <activity
+            android:name="com.genonbeta.CoolSocket.test.TemplateListActivity"
+            android:label="Template List" />
     </application>
 
 </manifest>

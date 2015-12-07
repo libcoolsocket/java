@@ -21,7 +21,8 @@ public class Main extends AppCompatActivity
 	public static final String EXTRA_PEER_ADDRESS = "extraPeerAddress";
 
 	public static final int REQUEST_CHOOSE_PEER = 15;
-
+	public static final int REQUEST_USE_TEMPLATE = 30;
+	
 	private Receiver mReceiver = new Receiver();
 	private MessageSenderHandler mSenderHandler = new MessageSenderHandler();
 	private Cool mCool = new Cool();
@@ -162,6 +163,7 @@ public class Main extends AppCompatActivity
 	{
 		// TODO: Implement this method
 		menu.add("Pair finder");
+		menu.add("Template list");
 		menu.add("About").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
 
 		return super.onCreateOptionsMenu(menu);
@@ -184,6 +186,10 @@ public class Main extends AppCompatActivity
 		{
 			startActivityForResult(new Intent(Main.this, PairFinder.class), REQUEST_CHOOSE_PEER);
 		}
+		else if ("Template list".equals(item.getTitle()))
+		{
+			startActivityForResult(new Intent(Main.this, TemplateListActivity.class), REQUEST_USE_TEMPLATE);
+		}
 
 		return super.onOptionsItemSelected(item);
 	}
@@ -193,8 +199,6 @@ public class Main extends AppCompatActivity
 	{
 		// TODO: Implement this method
 		super.onActivityResult(requestCode, resultCode, data);
-		
-		Log.d("TTTT", requestCode + " " + resultCode + " " + (data == null));
 		
 		if (data == null)
 			return;
@@ -207,6 +211,13 @@ public class Main extends AppCompatActivity
 					{
 						mEditTextServer.getText().clear();
 						mEditTextServer.getText().append(data.getStringExtra(EXTRA_PEER_ADDRESS));
+					}
+					break;
+				case REQUEST_USE_TEMPLATE:
+					if (data.hasExtra(EXTRA_MESSAGE))
+					{
+						mEditText.getText().clear();
+						mEditText.getText().append(data.getStringExtra(EXTRA_MESSAGE));
 					}
 					break;
 			}

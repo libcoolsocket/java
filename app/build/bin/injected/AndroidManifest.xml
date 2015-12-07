@@ -60,6 +60,10 @@
 			android:name=".PairFinder"
 			android:label="Pair Finder"/>
 
+		<activity
+			android:name=".TemplateListActivity"
+			android:label="Template List"/>
+
 	</application>
 
 </manifest>
