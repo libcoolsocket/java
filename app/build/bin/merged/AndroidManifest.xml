@@ -31,6 +31,9 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="com.genonbeta.CoolSocket.HOME_ACTIVITY" />
+            </intent-filter>
         </activity>
         <activity
             android:name="com.genonbeta.CoolSocket.test.PairFinder"
