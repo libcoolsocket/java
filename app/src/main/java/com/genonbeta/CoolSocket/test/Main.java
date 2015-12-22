@@ -22,7 +22,7 @@ public class Main extends AppCompatActivity
 
 	public static final int REQUEST_CHOOSE_PEER = 15;
 	public static final int REQUEST_USE_TEMPLATE = 30;
-	
+
 	private Receiver mReceiver = new Receiver();
 	private MessageSenderHandler mSenderHandler = new MessageSenderHandler();
 	private Cool mCool = new Cool();
@@ -35,6 +35,16 @@ public class Main extends AppCompatActivity
 
 	private ArrayList<String> mList = new ArrayList<String>();
 	private MessageListAdapter mAdapter;
+
+	private Runnable mErrorToast = new Runnable()
+	{
+		@Override
+		public void run()
+		{
+			// TODO: Implement this method
+			Toast.makeText(Main.this, "Something went wrong", Toast.LENGTH_SHORT).show();
+		}
+	};
 
 	public void addMessage(String message)
 	{
@@ -52,7 +62,7 @@ public class Main extends AppCompatActivity
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-		
+
 		mFilter.addAction(ACTION_UPDATE);
 
 		mCool.start();
@@ -199,7 +209,7 @@ public class Main extends AppCompatActivity
 	{
 		// TODO: Implement this method
 		super.onActivityResult(requestCode, resultCode, data);
-		
+
 		if (data == null)
 			return;
 
@@ -250,7 +260,7 @@ public class Main extends AppCompatActivity
 		protected void onError(Exception exception)
 		{
 			// TODO: Implement this method
-			Toast.makeText(Main.this, "An server error occurred (" + exception.getMessage() + ")", Toast.LENGTH_SHORT).show();
+			Main.this.runOnUiThread(mErrorToast);
 		}
 	}
 
@@ -287,6 +297,7 @@ public class Main extends AppCompatActivity
 		public void onError(Exception exception)
 		{
 			// TODO: Implement this method
+			Main.this.runOnUiThread(mErrorToast);
 		}
 
 		@Override

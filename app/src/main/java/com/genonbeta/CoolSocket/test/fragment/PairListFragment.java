@@ -15,7 +15,7 @@ import android.support.v4.app.ListFragment;
 public class PairListFragment extends ListFragment implements OnItemClickListener
 {
 	private PairListAdapter mAdapter;
-
+	
 	@Override
 	public void onActivityCreated(Bundle savedInstanceState)
 	{
@@ -46,7 +46,6 @@ public class PairListFragment extends ListFragment implements OnItemClickListene
 			getActivity().setResult(Activity.RESULT_OK, result);
 	
 		getActivity().finish();
-		//getActivity().finishActivity(Main.REQUEST_CHOOSE_PEER);
 	}
 
 	@Override
@@ -68,7 +67,7 @@ public class PairListFragment extends ListFragment implements OnItemClickListene
 		{
 			if (PairListHolder.getScanner().isScannerAvaiable())
 				mAdapter.notifyDataSetChanged();
-				
+			
 			return true;
 		}
 		else if ("Scan".equals(item.getTitle()))

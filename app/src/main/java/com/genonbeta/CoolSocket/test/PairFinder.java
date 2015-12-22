@@ -27,13 +27,4 @@ public class PairFinder extends AppCompatActivity
 			ft.commit();
 		}
 	}
-	
-	@Override
-	protected void onStart()
-	{
-		// TODO: Implement this method
-		super.onStart();
-	}
-	
-
 }
