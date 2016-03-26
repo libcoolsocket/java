@@ -1,6 +1,8 @@
 
 import java.util.*;
-import com.genonbeta.CoolSocket.*;public class MessengerTest
+import com.genonbeta.CoolSocket.*;
+
+public class MessengerTest
 {
 	public static final ArrayList<String> Sentences = new ArrayList<String>();
 	
