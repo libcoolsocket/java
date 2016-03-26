@@ -15,8 +15,8 @@ public class TransferTest
 			
 			System.out.println("\n--- CoolTransfer Test ---\n");
 
-			File sF = new File("/storage/extSdCard/Videos/Disgrace (2008) [YTS.AG]/Disgrace.2008.720p.BluRay.x264-[YTS.AG].mp4");
-			File rF = new File("/mnt/extSdCard/vp.mp4");
+			File sF = new File("/home/veli/fileToSend");
+			File rF = new File("/home/veli/fileToReceive");
 
 			if (rF.isFile())
 				rF.delete();

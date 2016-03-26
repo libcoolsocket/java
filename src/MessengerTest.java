@@ -33,9 +33,9 @@ import com.genonbeta.CoolSocket.*;public class MessengerTest
 	
 	public static void loadSentences()
 	{
-		Sentences.add("Tacizin asikar");
-		Sentences.add("Sadece bana mahsus degil yokolma seanslari");
-		Sentences.add("Yagmur sakladi gozyaslarimi");
-		Sentences.add("Kopya kalplere damladim dam dam");
+		Sentences.add("This is CoolSocket");
+		Sentences.add("CoolSocket doesnt care other java socket implementations");
+		Sentences.add("Because CoolSocket knows he is different");
+		Sentences.add("CoolSocket is smart. Be like CoolSocket");
 	}
 }
