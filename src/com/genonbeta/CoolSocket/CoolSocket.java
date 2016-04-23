@@ -41,6 +41,12 @@ abstract public class CoolSocket
 		this.mSocketAddress = new InetSocketAddress(address, port);
 	}
 	
+	protected void onClosingConnection(ClientHandler client)
+	{}
+	
+	abstract protected void onError(Exception exception);
+	abstract protected void onPacketReceived(Socket socket);
+	
 	public ArrayList<ClientHandler> getConnections()
 	{
 		return this.mConnections;
@@ -65,9 +71,6 @@ abstract public class CoolSocket
 	{
 		return this.isStopped;
 	}
-	
-	protected void onClosingConnection(ClientHandler client)
-	{}
 	
 	public static ByteArrayOutputStream readStream(InputStream inputStreamIns) throws IOException
 	{
@@ -101,12 +104,12 @@ abstract public class CoolSocket
 	
 	private boolean respondRequest(Socket socket)
 	{
-		if (this.mConnections.size() < this.mMaxConnections || this.mMaxConnections == 0)
+		if (this.getConnections().size() < this.mMaxConnections || this.mMaxConnections == 0)
 		{	
 			ClientHandler clientRunnable = new ClientHandler(socket);
 			Thread selfThread = new Thread(clientRunnable);
 
-			this.mConnections.add(clientRunnable);
+			this.getConnections().add(clientRunnable);
 
 			selfThread.start();
 		}
@@ -180,8 +183,6 @@ abstract public class CoolSocket
 			}
 		}
 	}
-
-	abstract protected void onPacketReceived(Socket socket);
 	
 	protected class ClientHandler implements Runnable
 	{
@@ -208,7 +209,7 @@ abstract public class CoolSocket
 			CoolSocket.this.onPacketReceived(this.mSocket);
 			
 			CoolSocket.this.onClosingConnection(this);
-			CoolSocket.this.mConnections.remove(this);
+			CoolSocket.this.getConnections().remove(this);
 		}
 		
 		public Socket getSocket()
@@ -237,7 +238,7 @@ abstract public class CoolSocket
 			}
 			catch (IOException e)
 			{
-				CoolSocket.this.stop();
+				CoolSocket.this.onError(e);
 			}
 		}
 	}

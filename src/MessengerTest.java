@@ -26,7 +26,9 @@ public class MessengerTest
 					}
 				}
 				catch (Exception e)
-				{}
+				{
+					System.out.println("I can't sleep");
+				}
 			}
 		};
 		
@@ -36,7 +38,7 @@ public class MessengerTest
 	public static void loadSentences()
 	{
 		Sentences.add("This is CoolSocket");
-		Sentences.add("CoolSocket doesnt care about other java socket implementations");
+		Sentences.add("CoolSocket doesn't care about other Java Socket Implementations");
 		Sentences.add("Because CoolSocket knows he is different");
 		Sentences.add("CoolSocket is smart. Be like CoolSocket");
 	}

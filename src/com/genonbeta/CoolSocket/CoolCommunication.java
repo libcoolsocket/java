@@ -45,7 +45,6 @@ public abstract class CoolCommunication extends CoolSocket
 	}
 
 	abstract protected void onMessage(Socket socket, String message, PrintWriter writer, String clientIp);
-	abstract protected void onError(Exception exception);
 
 	public static class Messenger
 	{

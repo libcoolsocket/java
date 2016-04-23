@@ -1,10 +1,9 @@
 import com.genonbeta.CoolSocket.*;
+import com.genonbeta.core.util.*;
 import java.io.*;
 import java.net.*;
+import java.util.*;
 import org.json.*;
-import com.genonbeta.core.util.*;
-import com.genonbeta.CoolSocket.CoolJsonCommunication.JsonResponseHandler.*;
-import com.genonbeta.CoolSocket.CoolCommunication.Messenger.*;
 
 public class Main implements Serializable
 {
@@ -12,15 +11,6 @@ public class Main implements Serializable
 	{
 		final Cool cool = new Cool();
 		final Cool.Messenger msn = new Cool.Messenger();
-		
-		System.out.println("\n--- Before we start ---\n");
-		
-		for (NetworkInterface inetAddress : NetworkUtils.getInterfaces(true, new String[] {"rmnet"}).keySet())
-		{
-			System.out.println(inetAddress.getName());
-		}
-		
-		System.out.println("\n--- Lets start ---\n");
 		
 		cool.start();
 		cool.setMaxConnections(5);
@@ -75,8 +65,10 @@ public class Main implements Serializable
 		{
 			try
 			{
-				response.put("Server", "OK");
+				System.out.println("Server: Connected to " + clientIp);
 				System.out.println("Server: Received = " + receivedMessage.toString());
+				
+				response.put("Server", "OK");
 			}
 			catch (JSONException e)
 			{
