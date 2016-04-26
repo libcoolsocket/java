@@ -59,6 +59,18 @@ public abstract class CoolCommunication extends CoolSocket
 			new Thread(runnable).start();
 		}
 		
+		public static boolean sendOnCurrentThread(String socketHost, int socketPort, String message, ResponseHandler handler)
+		{
+			return sendOnCurrentThread(new InetSocketAddress(socketHost, socketPort), message, handler);
+		}
+		
+		public static boolean sendOnCurrentThread(InetSocketAddress address, String message, ResponseHandler handler)
+		{
+			SenderRunnable runnable = new SenderRunnable(address, message, handler);
+			
+			return runnable.runProcess();
+		}
+		
 		private static class SenderRunnable implements Runnable
 		{
 			private Process mProcess;
@@ -70,6 +82,11 @@ public abstract class CoolCommunication extends CoolSocket
 			
 			@Override
 			public void run()
+			{
+				runProcess();
+			}
+			
+			public boolean runProcess()
 			{
 				if (this.mProcess.getResponseHandler() != null)
 					this.mProcess.getResponseHandler().onConfigure(this.mProcess);
@@ -99,6 +116,8 @@ public abstract class CoolCommunication extends CoolSocket
 					
 					if (this.mProcess.getResponseHandler() != null)
 						this.mProcess.getResponseHandler().onResponseAvaiable(this.mProcess.getResponse());
+						
+					return true;
 				}
 				catch (IOException e)
 				{
@@ -110,6 +129,8 @@ public abstract class CoolCommunication extends CoolSocket
 					if (this.mProcess.getResponseHandler() != null)
 						this.mProcess.getResponseHandler().onFinal();
 				}
+				
+				return false;
 			}
 		}
 		
