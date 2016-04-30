@@ -2,9 +2,9 @@
 Initial Relase of CoolSocket
 <ul>
 	<li><b>CoolSocket</b> Main socket server implementation</li>
-	<li><b>CoolCommunation</b> Gets everthing easier</li>
-	<li><b>CoolCommunation.Messenger</b> Talks to a CoolSocket server</li>
-	<li><b>CoolJsonCommunation</b> Still easy but now it also speaks JSON</li>
+	<li><b>CoolCommunication</b> Gets everthing easier</li>
+	<li><b>CoolCommunication.Messenger</b> Talks to a CoolSocket server</li>
+	<li><b>CoolJsonCommunication</b> Still easy but now it also speaks JSON</li>
 	<li><b>CoolTransfer</b> Transfers files via Socket</li>
 </ul>
 <hr />
