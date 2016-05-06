@@ -80,12 +80,13 @@ public class Main implements Serializable
 		protected void onClosingConnection(CoolSocket.ClientHandler client)
 		{
 			super.onClosingConnection(client);
-			System.out.println("Server: Closing connection of " + client.getSocket().getInetAddress().getHostAddress());
+			System.out.println("Server: Closing connection of " + client.getAddress().getHostAddress());
 		}
 
 		@Override
 		protected void onError(Exception exception)
 		{
+			System.out.println("Server: Error = " + exception);
 		}	
 	}
 }

@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -18,13 +19,13 @@ abstract public class CoolSocket
 {
 	public static final String END_SEQUENCE = "\n();;";
 	
-	private Thread mMainThread;
-	private ServerSocket mServer;
+	private Thread mServerThread;
+	private ServerSocket mServerSocket;
 	private SocketAddress mSocketAddress = null;
-	private boolean isStopped = false;
-	private SocketRunnable mRunnable = new SocketRunnable();
+	private boolean mDidServerStop = false;
 	private int mSocketTimeout = -1; // no timeout
 	private int mMaxConnections = 0; // no limit
+	private SocketRunnable mSocketRunnable = new SocketRunnable();
 	private ArrayList<ClientHandler> mConnections = new ArrayList<ClientHandler>();
 	
 	public CoolSocket()
@@ -54,12 +55,22 @@ abstract public class CoolSocket
 	
 	public int getLocalPort()
 	{
-		return this.mServer.getLocalPort();
+		return this.getServerSocket().getLocalPort();
 	}
 	
-	public Thread getServerThread()
+	protected ServerSocket getServerSocket()
 	{
-		return this.mMainThread;
+		return this.mServerSocket;
+	}
+	
+	protected SocketRunnable getSocketRunnable()
+	{
+		return this.mSocketRunnable;
+	}
+	
+	protected Thread getServerThread()
+	{
+		return this.mServerThread;
 	}
 	
 	public static PrintWriter getStreamWriter(OutputStream outputStream)
@@ -67,9 +78,14 @@ abstract public class CoolSocket
 		return new PrintWriter(new BufferedOutputStream(outputStream));
 	}
 	
-	public boolean isStopped()
+	public boolean isInterrupted()
 	{
-		return this.isStopped;
+		return this.getServerThread().isInterrupted();
+	}
+	
+	public boolean didServerStop()
+	{
+		return this.mDidServerStop;
 	}
 	
 	public static ByteArrayOutputStream readStream(InputStream inputStreamIns) throws IOException
@@ -102,7 +118,7 @@ abstract public class CoolSocket
 		return message.substring(0, message.length() - END_SEQUENCE.length());
 	}
 	
-	private boolean respondRequest(Socket socket)
+	protected boolean respondRequest(Socket socket)
 	{
 		if (this.getConnections().size() < this.mMaxConnections || this.mMaxConnections == 0)
 		{	
@@ -119,6 +135,11 @@ abstract public class CoolSocket
 		return true;
 	}
 	
+	public void setMaxConnections(int value)
+	{
+		this.mMaxConnections = value;
+	}
+	
 	public void setSocketAddress(SocketAddress address)
 	{
 		this.mSocketAddress = address;
@@ -131,14 +152,14 @@ abstract public class CoolSocket
 
 	public boolean start()
 	{
-		this.isStopped = false;
+		this.mDidServerStop = false;
 		
-		if (this.mServer == null || this.mServer.isClosed())
+		if (this.getServerSocket() == null || this.getServerSocket().isClosed())
 		{
 			try
 			{
-				this.mServer = new ServerSocket();
-				this.mServer.bind(this.mSocketAddress);
+				this.mServerSocket = new ServerSocket();
+				this.getServerSocket().bind(this.mSocketAddress);
 			}
 			catch (IOException e)
 			{
@@ -147,41 +168,41 @@ abstract public class CoolSocket
 			}
 		}
 
-		if (this.mMainThread == null || Thread.State.TERMINATED.equals(this.mMainThread.getState()))
+		if (this.getServerThread() == null || Thread.State.TERMINATED.equals(this.getServerThread().getState()))
 		{
-			this.mMainThread = new Thread(this.mRunnable);
+			this.mServerThread = new Thread(this.getSocketRunnable());
 
-			this.mMainThread.setDaemon(true);
-			this.mMainThread.setName("CoolSocket Main Thread");
+			this.getServerThread().setDaemon(true);
+			this.getServerThread().setName("CoolSocket Main Thread");
 		}
-		else if (this.mMainThread.isAlive() || this.mMainThread.isInterrupted())
+		else if (this.getServerThread().isAlive())
 			return false;
 
-		this.mMainThread.start();	
+		this.getServerThread().start();	
 
 		return true;
 	}
 	
-	public void setMaxConnections(int value)
+	public boolean stop()
 	{
-		this.mMaxConnections = value;
-	}
-
-	public void stop()
-	{
-		this.isStopped = true;
+		if (this.isInterrupted())
+			return false;
+			
+		this.getServerThread().interrupt();
 		
-		if (!this.mServer.isClosed())
+		if (!this.getServerSocket().isClosed())
 		{
 			try
 			{
-				this.mServer.close();
+				this.getServerSocket().close();
 			}
 			catch (IOException e)
 			{
 				e.printStackTrace();
 			}
 		}
+		
+		return true;
 	}
 	
 	protected class ClientHandler implements Runnable
@@ -191,6 +212,16 @@ abstract public class CoolSocket
 		public ClientHandler(Socket socket)
 		{
 			this.mSocket = socket;
+		}
+		
+		public InetAddress getAddress()
+		{
+			return this.getSocket().getInetAddress();
+		}
+		
+		public Socket getSocket()
+		{
+			return this.mSocket;
 		}
 		
 		@Override
@@ -211,11 +242,6 @@ abstract public class CoolSocket
 			CoolSocket.this.onClosingConnection(this);
 			CoolSocket.this.getConnections().remove(this);
 		}
-		
-		public Socket getSocket()
-		{
-			return this.mSocket;
-		}
 	}
 	
 	private class SocketRunnable implements Runnable
@@ -227,18 +253,22 @@ abstract public class CoolSocket
 			{
 				do
 				{
-					Socket request = CoolSocket.this.mServer.accept();
+					Socket request = CoolSocket.this.getServerSocket().accept();
 					
-					if (CoolSocket.this.isStopped)
+					if (CoolSocket.this.isInterrupted())
 						request.close();
 					else
 						respondRequest(request);
 				}
-				while (!CoolSocket.this.isStopped);
+				while (!CoolSocket.this.isInterrupted());
 			}
 			catch (IOException e)
 			{
 				CoolSocket.this.onError(e);
+			}
+			finally
+			{
+				CoolSocket.this.mDidServerStop = true;
 			}
 		}
 	}
