@@ -53,6 +53,11 @@ abstract public class CoolSocket
 		return this.mConnections;
 	}
 	
+	public boolean didServerStop()
+	{
+		return this.mDidServerStop;
+	}
+	
 	public int getLocalPort()
 	{
 		return this.getServerSocket().getLocalPort();
@@ -81,11 +86,6 @@ abstract public class CoolSocket
 	public boolean isInterrupted()
 	{
 		return this.getServerThread().isInterrupted();
-	}
-	
-	public boolean didServerStop()
-	{
-		return this.mDidServerStop;
 	}
 	
 	public static ByteArrayOutputStream readStream(InputStream inputStreamIns) throws IOException
