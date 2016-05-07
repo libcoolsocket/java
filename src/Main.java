@@ -15,6 +15,9 @@ public class Main implements Serializable
 		cool.start();
 		cool.setMaxConnections(5);
 		
+		System.out.println("Main@@: Try to stop server = " + cool.stop()); // stop test
+		System.out.println("Main@@: Try to start server = " + cool.startDelayed(5000)); // restart test
+		
 		msn.send("127.0.0.1", 4000, null, 
 			new Cool.JsonResponseHandler()
 			{
@@ -25,7 +28,7 @@ public class Main implements Serializable
 					{
 						json.put("Client", "OK");
 						
-						System.out.println("Main: Active Connections = " + cool.getConnections().size());
+						System.out.println("Main@@: Active Connections = " + cool.getConnections().size());
 						System.out.println("Client: Received = " + process.waitForResponse());
 					}
 					catch (JSONException e)
@@ -86,7 +89,7 @@ public class Main implements Serializable
 		@Override
 		protected void onError(Exception exception)
 		{
-			System.out.println("Server: Error = " + exception);
+			System.out.println("Server: " + ((this.isInterrupted()) ? "Server stopped" : " Error = " + exception));
 		}	
 	}
 }

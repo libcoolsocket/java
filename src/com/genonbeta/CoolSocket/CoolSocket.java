@@ -22,7 +22,6 @@ abstract public class CoolSocket
 	private Thread mServerThread;
 	private ServerSocket mServerSocket;
 	private SocketAddress mSocketAddress = null;
-	private boolean mDidServerStop = false;
 	private int mSocketTimeout = -1; // no timeout
 	private int mMaxConnections = 0; // no limit
 	private SocketRunnable mSocketRunnable = new SocketRunnable();
@@ -53,11 +52,6 @@ abstract public class CoolSocket
 		return this.mConnections;
 	}
 	
-	public boolean didServerStop()
-	{
-		return this.mDidServerStop;
-	}
-	
 	public int getLocalPort()
 	{
 		return this.getServerSocket().getLocalPort();
@@ -66,6 +60,11 @@ abstract public class CoolSocket
 	protected ServerSocket getServerSocket()
 	{
 		return this.mServerSocket;
+	}
+	
+	public SocketAddress getSocketAddress()
+	{
+		return this.mSocketAddress;
 	}
 	
 	protected SocketRunnable getSocketRunnable()
@@ -84,8 +83,18 @@ abstract public class CoolSocket
 	}
 	
 	public boolean isInterrupted()
-	{
+	{	
 		return this.getServerThread().isInterrupted();
+	}
+	
+	public boolean isComponentsReady()
+	{
+		return this.getServerSocket() != null && this.getServerThread() != null && this.getSocketAddress() != null;
+	}
+	
+	public boolean isServerAlive()
+	{	
+		return this.getServerThread().isAlive();
 	}
 	
 	public static ByteArrayOutputStream readStream(InputStream inputStreamIns) throws IOException
@@ -152,8 +161,6 @@ abstract public class CoolSocket
 
 	public boolean start()
 	{
-		this.mDidServerStop = false;
-		
 		if (this.getServerSocket() == null || this.getServerSocket().isClosed())
 		{
 			try
@@ -167,7 +174,7 @@ abstract public class CoolSocket
 				return false;
 			}
 		}
-
+		
 		if (this.getServerThread() == null || Thread.State.TERMINATED.equals(this.getServerThread().getState()))
 		{
 			this.mServerThread = new Thread(this.getSocketRunnable());
@@ -177,10 +184,20 @@ abstract public class CoolSocket
 		}
 		else if (this.getServerThread().isAlive())
 			return false;
-
+		
 		this.getServerThread().start();	
 
 		return true;
+	}
+	
+	public boolean startDelayed(int timeout)
+	{
+		long startTime = System.currentTimeMillis();
+		
+		while (this.isServerAlive() && (System.currentTimeMillis() - startTime) < timeout)
+		{}
+		
+		return this.start();
 	}
 	
 	public boolean stop()
@@ -265,10 +282,6 @@ abstract public class CoolSocket
 			catch (IOException e)
 			{
 				CoolSocket.this.onError(e);
-			}
-			finally
-			{
-				CoolSocket.this.mDidServerStop = true;
 			}
 		}
 	}

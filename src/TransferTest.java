@@ -95,7 +95,7 @@ public class TransferTest
 		@Override
 		public void onError(String serverIp, int port, File file, Exception error, Object e)
 		{
-			System.out.println("Sender: error (" + error + ")");
+			System.out.println("Sender@@: error (" + error + ")");
 		}
 
 		@Override
@@ -106,13 +106,13 @@ public class TransferTest
 		@Override
 		public void onTransferCompleted(String serverIp, int port, File file, Object extra)
 		{
-			System.out.println("Sender: completed");
+			System.out.println("Sender@@: completed");
 		}
 
 		@Override
 		public void onSocketReady(Socket socket, String serverIp, int port, File file, Object extra)
 		{
-			System.out.println("Sender: ready ; file = " + file + "; serverIp = " + serverIp + "; port = " + port + "; ");
+			System.out.println("Sender@@: ready ; file = " + file + "; serverIp = " + serverIp + "; port = " + port + "; ");
 		}
 	}
 }
