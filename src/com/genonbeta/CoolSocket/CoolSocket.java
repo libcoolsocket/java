@@ -82,14 +82,14 @@ abstract public class CoolSocket
 		return new PrintWriter(new BufferedOutputStream(outputStream));
 	}
 	
-	public boolean isInterrupted()
-	{	
-		return this.getServerThread().isInterrupted();
-	}
-	
 	public boolean isComponentsReady()
 	{
 		return this.getServerSocket() != null && this.getServerThread() != null && this.getSocketAddress() != null;
+	}
+	
+	public boolean isInterrupted()
+	{	
+		return this.getServerThread().isInterrupted();
 	}
 	
 	public boolean isServerAlive()
