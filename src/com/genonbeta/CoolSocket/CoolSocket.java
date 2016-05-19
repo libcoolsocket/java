@@ -18,11 +18,12 @@ import java.util.ArrayList;
 abstract public class CoolSocket
 {
 	public static final String END_SEQUENCE = "\n();;";
+	public static final int NO_TIMEOUT = -1;
 	
 	private Thread mServerThread;
 	private ServerSocket mServerSocket;
 	private SocketAddress mSocketAddress = null;
-	private int mSocketTimeout = -1; // no timeout
+	private int mSocketTimeout = NO_TIMEOUT; // no timeout
 	private int mMaxConnections = 0; // no limit
 	private SocketRunnable mSocketRunnable = new SocketRunnable();
 	private ArrayList<ClientHandler> mConnections = new ArrayList<ClientHandler>();
@@ -246,7 +247,7 @@ abstract public class CoolSocket
 		{
 			try
 			{
-				if (CoolSocket.this.mSocketTimeout != -1)
+				if (CoolSocket.this.mSocketTimeout > NO_TIMEOUT)
 					this.mSocket.setSoTimeout(CoolSocket.this.mSocketTimeout);
 			}
 			catch (SocketException e)
