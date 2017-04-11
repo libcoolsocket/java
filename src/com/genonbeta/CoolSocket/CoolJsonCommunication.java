@@ -56,18 +56,17 @@ public abstract class CoolJsonCommunication extends CoolCommunication
 		try
 		{
 			receivedMessage = new JSONObject(message);
-		}
-		catch (JSONException e)
+		} catch (JSONException e)
 		{
 			this.onError(e);
 		}
 
 		if (receivedMessage == null && !this.isMalformedRequestAllowed())
 			return; // request cannot be parsed && malformed requests are not allowed
-			
+
 		if (receivedMessage == null)
 			receivedMessage = new JSONObject();
-			
+
 		try
 		{
 			JSONObject responseJson = new JSONObject();
@@ -76,8 +75,7 @@ public abstract class CoolJsonCommunication extends CoolCommunication
 
 			writer.append((this.getAddTabsToResponse() > NO_TAB) ? responseJson.toString(this.getAddTabsToResponse()) : responseJson.toString());
 			writer.flush();
-		}
-		catch (JSONException e)
+		} catch (JSONException e)
 		{
 			this.onError(e);
 		}

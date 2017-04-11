@@ -1,10 +1,15 @@
 package com.genonbeta.CoolSocket;
 
-import java.io.*;
-import java.net.*;
-import java.util.concurrent.*;
-import java.nio.channels.*;
-import java.security.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.channels.NotYetBoundException;
+import java.util.concurrent.ArrayBlockingQueue;
 
 public class CoolTransfer
 {
@@ -16,9 +21,13 @@ public class CoolTransfer
 		private int notifyDelay = CoolTransfer.DELAY_DISABLED;
 
 		public abstract void onError(String serverIp, int port, File file, Exception error, T extra);
+
 		public abstract void onNotify(Socket socket, String serverIp, int port, File file, int percent, T extra);
+
 		public abstract void onTransferCompleted(String serverIp, int port, File file, T extra);
+
 		public abstract void onSocketReady(Socket socket, String serverIp, int port, File file, T extra);
+
 		public abstract boolean onStart(String serverIp, int port, File file, T extra);
 
 		public boolean onBreakRequest(String serverIp, int port, File file, T extra)
@@ -27,7 +36,8 @@ public class CoolTransfer
 		}
 
 		public void onStop(String serverIp, int port, File file, T extra)
-		{}
+		{
+		}
 
 		public ArrayBlockingQueue<SendHandler> getProcesses()
 		{
@@ -113,7 +123,7 @@ public class CoolTransfer
 
 						if (Send.this.notifyDelay == -1 || (System.currentTimeMillis() - lastNotified) > Send.this.notifyDelay)
 						{
-							int currentPercent = (int)(((float) 100 / this.mFile.length()) * inputStream.getChannel().position());
+							int currentPercent = (int) (((float) 100 / this.mFile.length()) * inputStream.getChannel().position());
 
 							if (currentPercent > progressPercent)
 							{
@@ -129,12 +139,11 @@ public class CoolTransfer
 					}
 
 					outputStream.close();
-					inputStream.close();			
+					inputStream.close();
 					socket.close();
 
 					Send.this.onTransferCompleted(this.mServerIp, this.mPort, this.mFile, this.mExtra);
-				}
-				catch (Exception e)
+				} catch (Exception e)
 				{
 					Send.this.onError(this.mServerIp, this.mPort, this.mFile, e, this.mExtra);
 				}
@@ -153,9 +162,13 @@ public class CoolTransfer
 		private int notifyDelay = CoolTransfer.DELAY_DISABLED;
 
 		public abstract void onError(int port, File file, Exception error, T extra);
+
 		public abstract void onNotify(Socket socket, int port, File file, int percent, T extra);
+
 		public abstract void onTransferCompleted(int port, File file, T extra);
+
 		public abstract void onSocketReady(ServerSocket socket, int port, File file, T extra);
+
 		public abstract boolean onStart(int port, File file, T extra);
 
 		public boolean onBreakRequest(int port, File file, T extra)
@@ -164,7 +177,8 @@ public class CoolTransfer
 		}
 
 		public void onStop(int port, File file, T extra)
-		{}
+		{
+		}
 
 		public ArrayBlockingQueue<ReceiveHandler> getProcesses()
 		{
@@ -256,7 +270,7 @@ public class CoolTransfer
 
 						if (Receive.this.notifyDelay == -1 || (System.currentTimeMillis() - lastNotified) > Receive.this.notifyDelay)
 						{
-							int currentPercent = (int)(((float) 100 / this.mFileSize) * outputStream.getChannel().position());
+							int currentPercent = (int) (((float) 100 / this.mFileSize) * outputStream.getChannel().position());
 
 							if (currentPercent > progressPercent)
 							{
@@ -272,7 +286,7 @@ public class CoolTransfer
 					}
 
 					outputStream.close();
-					inputStream.close();			
+					inputStream.close();
 					socket.close();
 					serverSocket.close();
 
@@ -280,8 +294,7 @@ public class CoolTransfer
 						Receive.this.onError(this.mPort, this.mFile, new NotYetBoundException(), this.mExtra);
 
 					Receive.this.onTransferCompleted(this.mPort, this.mFile, this.mExtra);
-				}
-				catch (Exception e)
+				} catch (Exception e)
 				{
 					Receive.this.onError(this.mPort, this.mFile, e, this.mExtra);
 				}

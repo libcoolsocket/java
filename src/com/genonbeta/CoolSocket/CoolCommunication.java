@@ -5,7 +5,7 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.io.*;
+import java.util.concurrent.TimeoutException;
 
 public abstract class CoolCommunication extends CoolSocket
 {
@@ -27,18 +27,20 @@ public abstract class CoolCommunication extends CoolSocket
 	protected void onPacketReceived(Socket socket)
 	{
 		try
-		{			
-			PrintWriter writer = this.getStreamWriter(socket.getOutputStream());
-			String message = this.readStreamMessage(socket.getInputStream());
-			
+		{
+			PrintWriter writer = getStreamWriter(socket.getOutputStream());
+			String message = readStreamMessage(socket.getInputStream(), getSocketTimeout());
+
 			this.onMessage(socket, message, writer, socket.getInetAddress().isAnyLocalAddress() ? "127.0.0.1" : socket.getInetAddress().getHostAddress());
-			
+
 			writer.append(CoolSocket.END_SEQUENCE);
 			writer.flush();
-			
+
 			socket.close();
-		}
-		catch (IOException e)
+		} catch (IOException e)
+		{
+			this.onError(e);
+		} catch (TimeoutException e)
 		{
 			this.onError(e);
 		}
@@ -49,79 +51,78 @@ public abstract class CoolCommunication extends CoolSocket
 	public static class Messenger
 	{
 		public static final int NO_TIMEOUT = -1;
-		
+
 		public static void send(String socketHost, int socketPort, String message, ResponseHandler handler)
 		{
 			send(new InetSocketAddress(socketHost, socketPort), message, handler);
 		}
-		
+
 		public static void send(InetSocketAddress address, String message, ResponseHandler handler)
 		{
 			SenderRunnable runnable = new SenderRunnable(address, message, handler);
 			new Thread(runnable).start();
 		}
-		
+
 		public static boolean sendOnCurrentThread(String socketHost, int socketPort, String message, ResponseHandler handler)
 		{
 			return sendOnCurrentThread(new InetSocketAddress(socketHost, socketPort), message, handler);
 		}
-		
+
 		public static boolean sendOnCurrentThread(InetSocketAddress address, String message, ResponseHandler handler)
 		{
 			SenderRunnable runnable = new SenderRunnable(address, message, handler);
-			
+
 			return runnable.runProcess();
 		}
-		
+
 		private static class SenderRunnable implements Runnable
 		{
 			private Process mProcess;
-			
+
 			public SenderRunnable(SocketAddress address, String message, ResponseHandler handler)
 			{
 				this.mProcess = new Process(address, message, handler);
 			}
-			
+
 			@Override
 			public void run()
 			{
 				runProcess();
 			}
-			
+
 			public boolean runProcess()
 			{
 				if (this.mProcess.getResponseHandler() != null)
 					this.mProcess.getResponseHandler().onConfigure(this.mProcess);
-				
+
 				Socket socket = new Socket();
 
 				try
 				{
 					socket.bind(null);
 					socket.connect(this.mProcess.getSocketAddress());
-					
+
 					if (this.mProcess.getSocketTimeout() != NO_TIMEOUT)
 						socket.setSoTimeout(this.mProcess.getSocketTimeout());
-					
+
 					PrintWriter writer = getStreamWriter(socket.getOutputStream());
 
 					this.mProcess.setSocket(socket);
 					this.mProcess.setWriter(writer);
-					
+
 					if (this.mProcess.getMessage() != null)
 						writer.append(this.mProcess.getMessage());
-					
+
 					if (this.mProcess.getResponseHandler() != null)
 						this.mProcess.getResponseHandler().onMessage(socket, mProcess, writer);
-						
+
 					this.mProcess.waitForResponse();
-					
+
 					if (this.mProcess.getResponseHandler() != null)
-						this.mProcess.getResponseHandler().onResponseAvaiable(this.mProcess.getResponse());
-						
+						this.mProcess.getResponseHandler().onResponseAvailable(this.mProcess.getResponse());
+
 					return true;
-				}
-				catch (IOException e)
+				} catch (IOException e)
 				{
 					if (this.mProcess.getResponseHandler() != null)
 						this.mProcess.getResponseHandler().onError(e);
@@ -131,11 +132,11 @@ public abstract class CoolCommunication extends CoolSocket
 					if (this.mProcess.getResponseHandler() != null)
 						this.mProcess.getResponseHandler().onFinal();
 				}
-				
+
 				return false;
 			}
 		}
-		
+
 		public static class Process
 		{
 			private SocketAddress mAddress;
@@ -161,12 +162,12 @@ public abstract class CoolCommunication extends CoolSocket
 			{
 				return this.mMessage;
 			}
-			
+
 			public Object getPutLater()
 			{
 				return this.mPutLater;
 			}
-			
+
 			public PrintWriter getPrintWriter()
 			{
 				return this.mWriter;
@@ -181,10 +182,15 @@ public abstract class CoolCommunication extends CoolSocket
 			{
 				return this.mHandler;
 			}
-			
+
 			public Socket getSocket()
 			{
 				return this.mSocket;
+			}
+
+			public void setSocket(Socket socket)
+			{
+				this.mSocket = socket;
 			}
 
 			public SocketAddress getSocketAddress()
@@ -197,49 +203,14 @@ public abstract class CoolCommunication extends CoolSocket
 				return this.mSocketTimeout;
 			}
 
+			public void setSocketTimeout(int timeout)
+			{
+				this.mSocketTimeout = timeout;
+			}
+
 			public boolean isResponseReceived()
 			{
 				return this.mResponseReceived;
-			}
-			
-			public boolean isFlushRequested()
-			{
-				return this.mIsFlushRequested;
-			}
-			
-			public void putLater(Object object)
-			{
-				this.mPutLater = object;
-			}
-			
-			public boolean requestFlush()
-			{
-				if (!this.isFlushRequested() && this.getPrintWriter() != null)
-				{
-					this.mIsFlushRequested = true;
-					
-					if (this.getPutLater() != null)
-					{
-						this.getPrintWriter().append(this.getPutLater().toString());
-						this.mPutLater = null;
-					}
-					
-					this.getPrintWriter().append(CoolSocket.END_SEQUENCE);
-					this.getPrintWriter().flush();
-					
-					try
-					{
-						this.setResponseReceived(readStreamMessage(this.getSocket().getInputStream()));
-					}
-					catch (IOException e)
-					{
-						return false;
-					}
-					
-					return true;
-				}
-				
-				return false;
 			}
 
 			public void setResponseReceived(String response)
@@ -248,16 +219,48 @@ public abstract class CoolCommunication extends CoolSocket
 				this.mResponseReceived = true;
 			}
 
-			public void setSocket(Socket socket)
+			public boolean isFlushRequested()
 			{
-				this.mSocket = socket;
+				return this.mIsFlushRequested;
 			}
-			
-			public void setSocketTimeout(int timeout)
+
+			public void putLater(Object object)
 			{
-				this.mSocketTimeout = timeout;
+				this.mPutLater = object;
 			}
-			
+
+			public boolean requestFlush()
+			{
+				if (!this.isFlushRequested() && this.getPrintWriter() != null)
+				{
+					this.mIsFlushRequested = true;
+
+					if (this.getPutLater() != null)
+					{
+						this.getPrintWriter().append(this.getPutLater().toString());
+						this.mPutLater = null;
+					}
+
+					this.getPrintWriter().append(CoolSocket.END_SEQUENCE);
+					this.getPrintWriter().flush();
+
+					try
+					{
+						this.setResponseReceived(readStreamMessage(this.getSocket().getInputStream(), getSocketTimeout()));
+					} catch (IOException e)
+					{
+						return false;
+					} catch (TimeoutException e)
+					{
+						return false;
+					}
+
+					return true;
+				}
+
+				return false;
+			}
+
 			public void setWriter(PrintWriter writer)
 			{
 				this.mWriter = writer;
@@ -266,33 +269,39 @@ public abstract class CoolCommunication extends CoolSocket
 			public String waitForResponse()
 			{
 				long timeStart = System.currentTimeMillis();
-				
+
 				if (this.requestFlush())
 				{
 					while (!this.isResponseReceived() && (this.getSocketTimeout() == Messenger.NO_TIMEOUT || (System.currentTimeMillis() - timeStart) < this.getSocketTimeout()))
-					{}
+					{
+					}
 				}
-				
+
 				return this.getResponse();
 			}
 		}
-		
+
 		public static class ResponseHandler
 		{
 			public void onConfigure(Process process)
-			{}
-			
+			{
+			}
+
 			public void onMessage(Socket socket, Process process, PrintWriter response)
-			{}
-			
-			public void onResponseAvaiable(String response)
-			{}
-			
+			{
+			}
+
+			public void onResponseAvailable(String response)
+			{
+			}
+
 			public void onError(Exception exception)
-			{}
-			
+			{
+			}
+
 			public void onFinal()
-			{}
+			{
+			}
 		}
 	}
 }
