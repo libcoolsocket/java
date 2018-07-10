@@ -72,7 +72,7 @@ public class CommunicationServer extends CoolSocket
 				JSONObject replyJSON = new JSONObject();
 				replyJSON.put("result", true);
 
-				activeConnection.reply(replyJSON.toString);
+				activeConnection.reply(replyJSON.toString());
 			} catch (Exception e) {
 			    // TODO: Handle error.
 			    // This could be due to the request timed out
