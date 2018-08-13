@@ -6,7 +6,7 @@
 
     <groupId>com.genonbeta.coolsocket</groupId>
     <artifactId>main</artifactId>
-    <version>1.0</version>
+    <version>1.0.1</version>
 
     <repositories>
         <repository>
@@ -25,6 +25,12 @@
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>20180130</version>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.8.1</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

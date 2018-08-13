@@ -145,7 +145,8 @@ abstract public class CoolSocket
 
 	public boolean isServerAlive()
 	{
-		return this.getServerThread().isAlive();
+		return this.getServerThread() != null
+				&& this.getServerThread().isAlive();
 	}
 
 	protected boolean respondRequest(final Socket socket)
@@ -236,14 +237,33 @@ abstract public class CoolSocket
 		return true;
 	}
 
+	// ensures the server, if was stopping, has stopped
 	public boolean startDelayed(int timeout)
 	{
 		long startTime = System.currentTimeMillis();
 
-		while (this.isServerAlive() && (System.currentTimeMillis() - startTime) < timeout) {
+		while (this.isServerAlive()) {
+			if ((System.currentTimeMillis() - startTime) > timeout)
+				// We did not request start but it was already running, so it was rather not
+				// requested to stop or the server blocked itself and does not respond
+				return false;
 		}
 
 		return this.start();
+	}
+
+	// ensures the server is started otherwise returns false
+	public boolean startEnsured(int timeout) {
+		long startTime = System.currentTimeMillis();
+
+		if (!this.startDelayed(timeout))
+			return false;
+
+		while (!this.isServerAlive())
+			if ((System.currentTimeMillis() - startTime) > timeout)
+				return false;
+
+		return true;
 	}
 
 	public boolean stop()
