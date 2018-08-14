@@ -6,7 +6,28 @@
 
     <groupId>com.genonbeta.coolsocket</groupId>
     <artifactId>main</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.1.1</version>
+    <name>CoolSocket</name>
+    <description>Socket implementation</description>
+    <url>https://github.com/genonbeta/CoolSocket</url>
+    <licenses>
+        <license>
+            <name>General Public Licence, Version 2.0</name>
+            <url>https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>genonbeta</id>
+            <name>Genonbeta</name>
+            <email>genonbeta@gmail.com</email>
+        </developer>
+    </developers>
+    <scm>
+        <connection>https://github.com/genonbeta/CoolSocket.git</connection>
+        <developerConnection>https://github.com/genonbeta/CoolSocket.git</developerConnection>
+        <url>https://github.com/genonbeta/CoolSocket</url>
+    </scm>
 
     <repositories>
         <repository>
