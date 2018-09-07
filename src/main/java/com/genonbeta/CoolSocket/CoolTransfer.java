@@ -581,6 +581,11 @@ abstract public class CoolTransfer<T>
 			return true;
 		}
 
+		public long getCurrentTransferredByte()
+		{
+			return mCurrentTransferredByte;
+		}
+
 		public long getLastNotified()
 		{
 			return mLastNotified;
