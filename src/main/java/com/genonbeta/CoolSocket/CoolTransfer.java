@@ -310,10 +310,11 @@ abstract public class CoolTransfer<T>
 
 							if (Flag.CONTINUE.equals(getFlag())) {
 								InputStream inputStream = getSocket().getInputStream();
-								onOrientatingStreams(this, inputStream, getOutputStream());
-
 								int len = 0;
 								long lastRead = System.currentTimeMillis();
+
+								onOrientatingStreams(this, inputStream, getOutputStream());
+								getTransferProgress().resetCurrentTransferredByte();
 
 								while (len != -1) {
 									synchronized (getBlockingObject()) {
@@ -456,11 +457,10 @@ abstract public class CoolTransfer<T>
 
 						if (Flag.CONTINUE.equals(getFlag())) {
 							OutputStream outputStream = getSocket().getOutputStream();
-
-							onOrientatingStreams(this, getInputStream(), outputStream);
-
 							int len = 0;
 
+							onOrientatingStreams(this, getInputStream(), outputStream);
+							getTransferProgress().resetCurrentTransferredByte();
 							getTransferProgress().incrementTransferredByte(getSkippedBytes());
 
 							while (len != -1) {
@@ -532,6 +532,7 @@ abstract public class CoolTransfer<T>
 	public static class TransferProgress<T>
 	{
 		private long mStartTime = System.currentTimeMillis();
+		private long mCurrentTransferredByte;
 		private long mTransferredByte;
 		private long mTotalByte;
 		private long mTimeElapsed;
@@ -548,6 +549,7 @@ abstract public class CoolTransfer<T>
 
 		public long decrementTransferredByte(long size)
 		{
+			mCurrentTransferredByte -= size;
 			mTransferredByte -= size;
 			return mTransferredByte;
 		}
@@ -621,6 +623,7 @@ abstract public class CoolTransfer<T>
 
 		public long incrementTransferredByte(long size)
 		{
+			mCurrentTransferredByte += size;
 			mTransferredByte += size;
 			return mTransferredByte;
 		}
@@ -639,6 +642,10 @@ abstract public class CoolTransfer<T>
 		public boolean isInterrupted()
 		{
 			return mInterrupted;
+		}
+
+		public void resetCurrentTransferredByte() {
+			mCurrentTransferredByte = 0;
 		}
 
 		public void setTotalByte(long totalByte)
