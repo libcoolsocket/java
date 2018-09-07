@@ -243,6 +243,8 @@ abstract public class CoolTransfer<T>
 		@Override
 		public void run()
 		{
+			getTransferProgress().resetCurrentTransferredByte();
+
 			setStatus(Status.RUNNING);
 			onRun();
 			setStatus(Status.INTERRUPTED);
@@ -314,7 +316,6 @@ abstract public class CoolTransfer<T>
 								long lastRead = System.currentTimeMillis();
 
 								onOrientatingStreams(this, inputStream, getOutputStream());
-								getTransferProgress().resetCurrentTransferredByte();
 
 								while (len != -1) {
 									synchronized (getBlockingObject()) {
@@ -443,7 +444,6 @@ abstract public class CoolTransfer<T>
 			protected void onRun()
 			{
 				addProcess(this);
-
 				setFlag(onStart(this));
 
 				try {
@@ -460,8 +460,6 @@ abstract public class CoolTransfer<T>
 							int len = 0;
 
 							onOrientatingStreams(this, getInputStream(), outputStream);
-							getTransferProgress().resetCurrentTransferredByte();
-							getTransferProgress().incrementTransferredByte(getSkippedBytes());
 
 							while (len != -1) {
 								synchronized (getBlockingObject()) {
