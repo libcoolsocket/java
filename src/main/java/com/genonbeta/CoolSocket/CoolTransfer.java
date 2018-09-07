@@ -206,8 +206,10 @@ abstract public class CoolTransfer<T>
 
 		public TransferHandler<T> linkTo(TransferHandler<T> transferHandler)
 		{
-			if (transferHandler != null)
+			if (transferHandler != null) {
 				setTransferProgress(transferHandler.getTransferProgress());
+				getTransferProgress().resetCurrentTransferredByte();
+			}
 
 			return this;
 		}
