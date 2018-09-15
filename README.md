@@ -83,56 +83,20 @@ public class CommunicationServer extends CoolSocket
 }
 ```
 
-<h3>Implement CoolSocket</h3>
-<h4>Maven</h4>
-
-```xml
-...
-<profiles>
-        <profile>
-            <repositories>
-                <repository>
-                    <snapshots>
-                        <enabled>false</enabled>
-                    </snapshots>
-                    <id>bintray-genonbeta-coolsocket</id>
-                    <name>bintray</name>
-                    <url>https://dl.bintray.com/genonbeta/coolsocket</url>
-                </repository>
-            </repositories>
-            <pluginRepositories>
-                <pluginRepository>
-                    <snapshots>
-                        <enabled>false</enabled>
-                    </snapshots>
-                    <id>bintray-genonbeta-coolsocket</id>
-                    <name>bintray-plugins</name>
-                    <url>https://dl.bintray.com/genonbeta/coolsocket</url>
-                </pluginRepository>
-            </pluginRepositories>
-            <id>bintray</id>
-        </profile>
-    </profiles>
-    <activeProfiles>
-        <activeProfile>bintray</activeProfile>
-    </activeProfiles>
-</profiles
-...
-```
-
+<h3>Implementing CoolSocket</h3>
 <h4>Gradle</h4>
 
 ```xml
 ...
 repositories {
     ...
-    maven { url "https://dl.bintray.com/genonbeta/coolsocket" }
+    jcenter()
     ...
 }
 ...
 dependencies {
     ...
-    implementation 'com.genonbeta.coolsocket:main:1.0'
+    implementation 'com.genonbeta.coolsocket:main:1.0.2'
     ...
 }
 ...

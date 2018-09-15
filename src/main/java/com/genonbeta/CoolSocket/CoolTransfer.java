@@ -27,29 +27,21 @@ abstract public class CoolTransfer<T>
 
 	public abstract void onNotify(TransferHandler<T> handler, int percentage);
 
-	public abstract void onTransferCompleted(TransferHandler<T> handler);
+	public abstract Flag onPrepare(TransferHandler<T> handler);
 
-	public abstract void onInterrupted(TransferHandler<T> handler);
+	public abstract Flag onTaskPrepareSocket(TransferHandler<T> handler);
 
-	public abstract Flag onSocketReady(TransferHandler<T> handler);
+	public abstract void onTaskEnd(TransferHandler<T> handler);
 
-	public abstract Flag onStart(TransferHandler<T> handler);
-
-	public Flag onCloseStreams(TransferHandler<T> handler)
-	{
-		return Flag.CONTINUE;
-	}
+	public abstract void onDestroy(TransferHandler<T> handler);
 
 	public void onPrepareNext(TransferHandler<T> handler)
 	{
 	}
 
-	public void onStop(TransferHandler<T> handler)
+	public Flag onTaskOrientateStreams(TransferHandler<T> handler, InputStream inputStream, OutputStream outputStream)
 	{
-	}
-
-	public void onOrientatingStreams(TransferHandler<T> handler, InputStream inputStream, OutputStream outputStream)
-	{
+		return Flag.CONTINUE;
 	}
 
 	public void onProcessListChanged(ArrayList<TransferHandler<T>> processList, TransferHandler<T> handler, boolean isAdded)
@@ -146,9 +138,15 @@ abstract public class CoolTransfer<T>
 
 		protected abstract void onRun();
 
+		public void interrupt(boolean onlyThis)
+		{
+			setFlag(onlyThis ? Flag.CANCEL_CURRENT : Flag.CANCEL_ALL);
+			getTransferProgress().interrupt();
+		}
+
 		public void interrupt()
 		{
-			getTransferProgress().interrupt();
+			interrupt(false);
 		}
 
 		public boolean isInterrupted()
@@ -255,7 +253,7 @@ abstract public class CoolTransfer<T>
 
 	public static abstract class Receive<T> extends CoolTransfer<T>
 	{
-		public abstract Flag onSocketReady(TransferHandler<T> handler, ServerSocket serverSocket);
+		public abstract Flag onTaskPrepareSocket(TransferHandler<T> handler, ServerSocket serverSocket);
 
 		public Handler receive(int port, File file, long fileSize, int bufferSize, int timeOut, T extra, boolean currentThread) throws FileNotFoundException
 		{
@@ -293,7 +291,7 @@ abstract public class CoolTransfer<T>
 			{
 				addProcess(this);
 
-				setFlag(onStart(this));
+				setFlag(onPrepare(this));
 
 				try {
 					if (Flag.CONTINUE.equals(getFlag())) {
@@ -302,7 +300,7 @@ abstract public class CoolTransfer<T>
 						if (getTimeout() != CoolSocket.NO_TIMEOUT)
 							getServerSocket().setSoTimeout(getTimeout());
 
-						setFlag(onSocketReady(this, getServerSocket()));
+						setFlag(onTaskPrepareSocket(this, getServerSocket()));
 
 						if (Flag.CONTINUE.equals(getFlag())) {
 							setSocket(getServerSocket().accept());
@@ -310,54 +308,49 @@ abstract public class CoolTransfer<T>
 							if (getTimeout() != CoolSocket.NO_TIMEOUT)
 								getSocket().setSoTimeout(getTimeout());
 
-							setFlag(onSocketReady(this));
+							setFlag(onTaskPrepareSocket(this));
 
 							if (Flag.CONTINUE.equals(getFlag())) {
 								InputStream inputStream = getSocket().getInputStream();
 								int len = 0;
 								long lastRead = System.currentTimeMillis();
 
-								onOrientatingStreams(this, inputStream, getOutputStream());
+								setFlag(onTaskOrientateStreams(this, inputStream, getOutputStream()));
 
-								while (len != -1) {
-									synchronized (getBlockingObject()) {
-										if ((len = inputStream.read(getBuffer())) > 0) {
-											getOutputStream().write(getBuffer(), 0, len);
-											getOutputStream().flush();
+								if (Flag.CONTINUE.equals(getFlag())) {
+									while (len != -1) {
+										synchronized (getBlockingObject()) {
+											if ((len = inputStream.read(getBuffer())) > 0) {
+												getOutputStream().write(getBuffer(), 0, len);
+												getOutputStream().flush();
 
-											lastRead = System.currentTimeMillis();
+												lastRead = System.currentTimeMillis();
 
-											getTransferProgress().incrementTransferredByte(len);
+												getTransferProgress().incrementTransferredByte(len);
+											}
+										}
+
+										getTransferProgress().doNotify(Receive.this, this);
+
+										if ((mTimeout > 0 && (System.currentTimeMillis() - lastRead) > mTimeout) || isInterrupted()) {
+											System.out.println("CoolTransfer: Timed out... Exiting.");
+											break;
 										}
 									}
 
-									getTransferProgress().doNotify(Receive.this, this);
-
-									if ((mTimeout > 0 && (System.currentTimeMillis() - lastRead) > mTimeout) || isInterrupted()) {
-										System.out.println("CoolTransfer: Timed out... Exiting.");
-										break;
+									if (Flag.CONTINUE.equals(getFlag())) {
+										getTransferProgress().incrementTransferredFileCount();
+										onTaskEnd(this);
 									}
 								}
 
 								getOutputStream().close();
 								inputStream.close();
-
-								setFlag(onCloseStreams(this));
 							}
 						}
-
-						if (!Flag.CANCEL_CURRENT.equals(getFlag()))
-							if (isInterrupted()) {
-								setFlag(Flag.CANCEL_ALL);
-								onInterrupted(this);
-							} else {
-								getTransferProgress().incrementTransferredFileCount();
-								onTransferCompleted(this);
-							}
 					}
 				} catch (Exception e) {
 					setFlag(onError(this, e));
-
 				} finally {
 					try {
 						if (getSocket() != null && !getSocket().isClosed())
@@ -373,7 +366,7 @@ abstract public class CoolTransfer<T>
 						e.printStackTrace();
 					}
 
-					onStop(this);
+					onDestroy(this);
 
 					if (!Flag.CANCEL_ALL.equals(getFlag()))
 						onPrepareNext(this);
@@ -446,7 +439,7 @@ abstract public class CoolTransfer<T>
 			protected void onRun()
 			{
 				addProcess(this);
-				setFlag(onStart(this));
+				setFlag(onPrepare(this));
 
 				try {
 					if (Flag.CONTINUE.equals(getFlag())) {
@@ -455,40 +448,39 @@ abstract public class CoolTransfer<T>
 						getSocket().bind(null);
 						getSocket().connect(new InetSocketAddress(getServerIp(), getPort()));
 
-						setFlag(onSocketReady(this));
+						setFlag(onTaskPrepareSocket(this));
 
 						if (Flag.CONTINUE.equals(getFlag())) {
 							OutputStream outputStream = getSocket().getOutputStream();
 							int len = 0;
 
-							onOrientatingStreams(this, getInputStream(), outputStream);
+							setFlag(onTaskOrientateStreams(this, getInputStream(), outputStream));
 
-							while (len != -1) {
-								synchronized (getBlockingObject()) {
-									if ((len = getInputStream().read(getBuffer())) > 0) {
-										outputStream.write(getBuffer(), 0, len);
-										outputStream.flush();
+							if (Flag.CONTINUE.equals(getFlag())) {
+								while (len != -1) {
+									synchronized (getBlockingObject()) {
+										if ((len = getInputStream().read(getBuffer())) > 0) {
+											outputStream.write(getBuffer(), 0, len);
+											outputStream.flush();
 
-										getTransferProgress().incrementTransferredByte(len);
+											getTransferProgress().incrementTransferredByte(len);
+										}
 									}
+
+									getTransferProgress().doNotify(Send.this, this);
+
+									if (isInterrupted())
+										break;
 								}
 
-								getTransferProgress().doNotify(Send.this, this);
-
-								if (isInterrupted())
-									break;
+								if (Flag.CONTINUE.equals(getFlag())) {
+									getTransferProgress().incrementTransferredFileCount();
+									onTaskEnd(this);
+								}
 							}
 
 							outputStream.close();
 							getInputStream().close();
-						}
-
-						if (isInterrupted()) {
-							setFlag(Flag.CANCEL_ALL);
-							onInterrupted(this);
-						} else {
-							getTransferProgress().incrementTransferredFileCount();
-							onTransferCompleted(this);
 						}
 					}
 				} catch (Exception e) {
@@ -501,7 +493,7 @@ abstract public class CoolTransfer<T>
 						e.printStackTrace();
 					}
 
-					onStop(this);
+					onDestroy(this);
 
 					if (!Flag.CANCEL_ALL.equals(getFlag()))
 						onPrepareNext(this);
@@ -649,7 +641,8 @@ abstract public class CoolTransfer<T>
 			return mInterrupted;
 		}
 
-		public void resetCurrentTransferredByte() {
+		public void resetCurrentTransferredByte()
+		{
 			mCurrentTransferredByte = 0;
 		}
 

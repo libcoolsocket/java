@@ -253,7 +253,8 @@ abstract public class CoolSocket
 	}
 
 	// ensures the server is started otherwise returns false
-	public boolean startEnsured(int timeout) {
+	public boolean startEnsured(int timeout)
+	{
 		long startTime = System.currentTimeMillis();
 
 		if (!this.startDelayed(timeout))
@@ -302,15 +303,36 @@ abstract public class CoolSocket
 		private int mTimeout = NO_TIMEOUT;
 		private int mId = getClass().hashCode();
 
+		public ActiveConnection()
+		{
+			this(new Socket());
+		}
+
+		public ActiveConnection(int timeout)
+		{
+			this(new Socket(), timeout);
+		}
+
 		public ActiveConnection(Socket socket)
 		{
-			this.mSocket = socket;
+			mSocket = socket;
 		}
 
 		public ActiveConnection(Socket socket, int timeout)
 		{
 			this(socket);
 			setTimeout(timeout);
+		}
+
+		public ActiveConnection connect(SocketAddress socketAddress) throws IOException
+		{
+			if (getTimeout() != NO_TIMEOUT)
+				getSocket().setSoTimeout(getTimeout());
+
+			getSocket().bind(null);
+			getSocket().connect(socketAddress);
+
+			return this;
 		}
 
 		@Override
@@ -344,7 +366,7 @@ abstract public class CoolSocket
 			return this.mSocket;
 		}
 
-		public long getTimeout()
+		public int getTimeout()
 		{
 			return mTimeout;
 		}
@@ -488,15 +510,13 @@ abstract public class CoolSocket
 
 		public ActiveConnection connect(SocketAddress socketAddress, int operationTimeout) throws IOException
 		{
-			Socket socket = new Socket();
+			return new ActiveConnection(operationTimeout)
+					.connect(socketAddress);
+		}
 
-			if (operationTimeout != NO_TIMEOUT)
-				socket.setSoTimeout(operationTimeout);
-
-			socket.bind(null);
-			socket.connect(socketAddress);
-
-			return new ActiveConnection(socket, operationTimeout);
+		public void connect(ActiveConnection connection, SocketAddress socketAddress) throws IOException
+		{
+			connection.connect(socketAddress);
 		}
 
 		public Object getReturn()
