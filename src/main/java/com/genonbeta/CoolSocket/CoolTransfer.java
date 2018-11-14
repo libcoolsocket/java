@@ -116,42 +116,21 @@ abstract public class CoolTransfer<T>
 		PENDING,
 	}
 
-	public abstract static class TransferHandler<T> implements Runnable
+	public static class ParentBuilder<T>
 	{
-		private Socket mSocket;
-		private TransferProgress<T> mTransferProgress;
-		private Status mStatus = Status.PENDING;
 		private Flag mFlag = Flag.CANCEL_ALL;
-		private T mExtra;
 		private int mPort;
 		private long mFileSize;
+		private long mSkippedBytes;
 		private byte[] mBuffer;
-		private long mSkippedBytes = 0;
+		private Socket mSocket;
+		private TransferProgress<T> mProgress;
+		private T mExtra;
 
-		public TransferHandler(int port, long fileSize, byte[] bufferSize, T extra)
+		public ParentBuilder<T> setBuffer(byte[] buffer)
 		{
-			mExtra = extra;
-			mPort = port;
-			mFileSize = fileSize;
-			mBuffer = bufferSize;
-		}
-
-		protected abstract void onRun();
-
-		public void interrupt(boolean onlyThis)
-		{
-			setFlag(onlyThis ? Flag.CANCEL_CURRENT : Flag.CANCEL_ALL);
-			getTransferProgress().interrupt();
-		}
-
-		public void interrupt()
-		{
-			interrupt(false);
-		}
-
-		public boolean isInterrupted()
-		{
-			return getTransferProgress().isInterrupted();
+			mBuffer = buffer;
+			return this;
 		}
 
 		public byte[] getBuffer()
@@ -159,9 +138,9 @@ abstract public class CoolTransfer<T>
 			return mBuffer;
 		}
 
-		public Flag getFlag()
+		public T getExtra()
 		{
-			return mFlag;
+			return mExtra;
 		}
 
 		public long getFileSize()
@@ -169,9 +148,9 @@ abstract public class CoolTransfer<T>
 			return mFileSize;
 		}
 
-		public T getExtra()
+		public Flag getFlag()
 		{
-			return mExtra;
+			return mFlag;
 		}
 
 		public int getPort()
@@ -179,14 +158,128 @@ abstract public class CoolTransfer<T>
 			return mPort;
 		}
 
+		public Socket getSocket()
+		{
+			return mSocket;
+		}
+
 		public long getSkippedBytes()
 		{
 			return mSkippedBytes;
 		}
 
+		public TransferProgress<T> getTransferProgress()
+		{
+			if (mProgress == null)
+				setTransferProgress(new TransferProgress<>());
+
+			return mProgress;
+		}
+
+		public ParentBuilder<T> reset()
+		{
+			mPort = 0;
+			mFileSize = 0;
+			mSkippedBytes = 0;
+			mBuffer = null;
+			mSocket = null;
+			getTransferProgress().resetCurrentTransferredByte();
+
+			return this;
+		}
+
+		public ParentBuilder<T> setExtra(T extra)
+		{
+			mExtra = extra;
+			return this;
+		}
+
+		public ParentBuilder<T> setFileSize(long fileSize)
+		{
+			mFileSize = fileSize;
+			return this;
+		}
+
+		public void setFlag(Flag flag)
+		{
+			mFlag = flag;
+		}
+
+		public ParentBuilder<T> setPort(int port)
+		{
+			mPort = port;
+			return this;
+		}
+
+		public ParentBuilder<T> setSkippedBytes(long skippedBytes)
+		{
+			mSkippedBytes = skippedBytes;
+			return this;
+		}
+
+		public ParentBuilder<T> setSocket(Socket socket)
+		{
+			mSocket = socket;
+			return this;
+		}
+
+		public ParentBuilder<T> setTransferProgress(TransferProgress<T> transferProgress)
+		{
+			mProgress = transferProgress;
+			return this;
+		}
+	}
+
+	public abstract static class TransferHandler<T> implements Runnable
+	{
+		private Status mStatus = Status.PENDING;
+		private ParentBuilder<T> mParentBuilder;
+
+		public TransferHandler(ParentBuilder<T> parentBuilder)
+		{
+			mParentBuilder = parentBuilder;
+		}
+
+		protected abstract void onRun();
+
+		public byte[] getBuffer()
+		{
+			return getParentBuilder().getBuffer();
+		}
+
+		public Flag getFlag()
+		{
+			return getParentBuilder().getFlag();
+		}
+
+		public long getFileSize()
+		{
+			return getParentBuilder().getFileSize();
+		}
+
+		public T getExtra()
+		{
+			return getParentBuilder().getExtra();
+		}
+
+		public int getPort()
+		{
+			return getParentBuilder().getPort();
+		}
+
+		public ParentBuilder<T> getParentBuilder()
+		{
+			return mParentBuilder;
+		}
+
+		public long getSkippedBytes()
+		{
+			return getParentBuilder().getSkippedBytes();
+		}
+
 		public Socket getSocket()
 		{
-			return mSocket;
+			return getParentBuilder().getSocket();
 		}
 
 		public Status getStatus()
@@ -196,30 +289,17 @@ abstract public class CoolTransfer<T>
 
 		public TransferProgress<T> getTransferProgress()
 		{
-			if (mTransferProgress == null)
-				mTransferProgress = new TransferProgress<>();
-
-			return mTransferProgress;
-		}
-
-		public TransferHandler<T> linkTo(TransferHandler<T> transferHandler)
-		{
-			if (transferHandler != null) {
-				setTransferProgress(transferHandler.getTransferProgress());
-				getTransferProgress().resetCurrentTransferredByte();
-			}
-
-			return this;
+			return getParentBuilder().getTransferProgress();
 		}
 
 		public void setFlag(Flag flag)
 		{
-			mFlag = flag;
+			getParentBuilder().setFlag(flag);
 		}
 
 		protected void setSocket(Socket socket)
 		{
-			mSocket = socket;
+			getParentBuilder().setSocket(socket);
 		}
 
 		public void setStatus(Status status)
@@ -229,15 +309,16 @@ abstract public class CoolTransfer<T>
 
 		public void setTransferProgress(TransferProgress<T> transferProgress)
 		{
-			mTransferProgress = transferProgress;
+			getParentBuilder().setTransferProgress(transferProgress);
 		}
 
 		public void skipBytes(long bytes) throws IOException
 		{
-			if (mSkippedBytes > 0)
-				getTransferProgress().decrementTransferredByte(mSkippedBytes);
+			if (getParentBuilder().getSkippedBytes() > 0)
+				getTransferProgress().decrementTransferredByte(mParentBuilder.getSkippedBytes());
 
-			getTransferProgress().incrementTransferredByte(mSkippedBytes = bytes);
+			getParentBuilder().setSkippedBytes(bytes);
+			getTransferProgress().incrementTransferredByte(bytes);
 		}
 
 		@Override
@@ -255,14 +336,9 @@ abstract public class CoolTransfer<T>
 	{
 		public abstract Flag onTaskPrepareSocket(TransferHandler<T> handler, ServerSocket serverSocket);
 
-		public Handler receive(int port, File file, long fileSize, int bufferSize, int timeOut, T extra, boolean currentThread) throws FileNotFoundException
+		public Handler receive(Builder<T> builder, boolean currentThread)
 		{
-			return receive(port, new FileOutputStream(file, true), fileSize, bufferSize, timeOut, extra, currentThread);
-		}
-
-		public Handler receive(int port, OutputStream outputStream, long fileSize, int bufferSize, int timeOut, T extra, boolean currentThread)
-		{
-			Handler handler = new Handler(extra, port, outputStream, fileSize, new byte[bufferSize], timeOut);
+			Handler handler = new Handler(builder);
 
 			if (currentThread)
 				handler.run();
@@ -272,18 +348,65 @@ abstract public class CoolTransfer<T>
 			return handler;
 		}
 
-		public class Handler extends CoolTransfer.TransferHandler<T>
+		public static class Builder<T> extends ParentBuilder<T>
 		{
-			private int mTimeout;
-			private OutputStream mStream;
+			private int mTimeout = CoolSocket.NO_TIMEOUT;
+			private OutputStream mOutputStream;
 			private ServerSocket mServerSocket;
 
-			public Handler(T extra, int port, OutputStream stream, long fileSize, byte[] bufferSize, int timeout)
+			public OutputStream getOutputStream()
 			{
-				super(port, fileSize, bufferSize, extra);
+				return mOutputStream;
+			}
 
-				mStream = stream;
+			public ServerSocket getServerSocket()
+			{
+				return mServerSocket;
+			}
+
+			public int getTimeout()
+			{
+				return mTimeout;
+			}
+
+			@Override
+			public ParentBuilder<T> reset()
+			{
+				mOutputStream = null;
+				mServerSocket = null;
+				mTimeout = CoolSocket.NO_TIMEOUT;
+				return super.reset();
+			}
+
+			public Builder<T> setOutputStream(OutputStream outputStream)
+			{
+				mOutputStream = outputStream;
+				return this;
+			}
+
+			public Builder<T> setOutputStream(File file) throws FileNotFoundException
+			{
+				return setOutputStream(new FileOutputStream(file));
+			}
+
+			public Builder<T> setServerSocket(ServerSocket serverSocket)
+			{
+				mServerSocket = serverSocket;
+				return this;
+			}
+
+			public Builder<T> setTimeout(int timeout)
+			{
 				mTimeout = timeout;
+				return this;
+			}
+		}
+
+		public class Handler extends CoolTransfer.TransferHandler<T>
+		{
+			public Handler(Builder<T> builder)
+			{
+				super(builder);
 			}
 
 			@Override
@@ -332,7 +455,9 @@ abstract public class CoolTransfer<T>
 
 										getTransferProgress().doNotify(Receive.this, this);
 
-										if ((mTimeout > 0 && (System.currentTimeMillis() - lastRead) > mTimeout) || isInterrupted()) {
+										if ((getBuilder().getTimeout() > 0 && (System.currentTimeMillis() - lastRead) > getBuilder().getTimeout())
+												|| !Flag.CONTINUE.equals(getFlag())
+												|| getTransferProgress().isInterrupted()) {
 											System.out.println("CoolTransfer: Timed out... Exiting.");
 											break;
 										}
@@ -375,24 +500,29 @@ abstract public class CoolTransfer<T>
 				}
 			}
 
+			public Builder<T> getBuilder()
+			{
+				return (Builder<T>) getParentBuilder();
+			}
+
 			public OutputStream getOutputStream()
 			{
-				return mStream;
+				return getBuilder().getOutputStream();
 			}
 
 			public ServerSocket getServerSocket()
 			{
-				return mServerSocket;
+				return getBuilder().getServerSocket();
 			}
 
 			public int getTimeout()
 			{
-				return mTimeout;
+				return getBuilder().getTimeout();
 			}
 
 			public void setServerSocket(ServerSocket serverSocket)
 			{
-				mServerSocket = serverSocket;
+				getBuilder().setServerSocket(serverSocket);
 			}
 
 			@Override
@@ -405,9 +535,9 @@ abstract public class CoolTransfer<T>
 
 	public static abstract class Send<T> extends CoolTransfer<T>
 	{
-		public Handler send(String serverIp, int port, InputStream stream, long totalByte, int bufferSize, T extra, boolean currentThread)
+		public Handler send(Builder<T> builder, boolean currentThread)
 		{
-			Handler handler = new Handler(serverIp, port, stream, totalByte, new byte[bufferSize], extra);
+			Handler handler = new Handler(builder);
 
 			if (currentThread)
 				handler.run();
@@ -417,22 +547,57 @@ abstract public class CoolTransfer<T>
 			return handler;
 		}
 
-		public Handler send(String serverIp, int port, File file, long totalByte, int bufferSize, T extra, boolean currentThread) throws FileNotFoundException
+		public static class Builder<T> extends ParentBuilder<T>
 		{
-			return send(serverIp, port, new FileInputStream(file), totalByte, bufferSize, extra, currentThread);
+			private InputStream mInputStream;
+			private String mServerIp;
+
+			public InputStream getInputStream()
+			{
+				return mInputStream;
+			}
+
+			public String getServerIp()
+			{
+				return mServerIp;
+			}
+
+			@Override
+			public ParentBuilder<T> reset()
+			{
+				mInputStream = null;
+				mServerIp = null;
+				return super.reset();
+			}
+
+			public Builder<T> setInputStream(InputStream inputStream)
+			{
+				mInputStream = inputStream;
+				return this;
+			}
+
+			public Builder<T> setInputStream(File file) throws FileNotFoundException
+			{
+				return setInputStream(new FileInputStream(file));
+			}
+
+			public Builder<T> setServerIp(String ipAddress)
+			{
+				mServerIp = ipAddress;
+				return this;
+			}
 		}
 
 		public class Handler extends CoolTransfer.TransferHandler<T>
 		{
-			private String mServerIp;
-			private InputStream mStream;
-
-			public Handler(String serverIp, int port, InputStream stream, long fileSize, byte[] bufferSize, T extra)
+			public Handler(Builder<T> builder)
 			{
-				super(port, fileSize, bufferSize, extra);
+				super(builder);
+			}
 
-				mServerIp = serverIp;
-				mStream = stream;
+			public Builder<T> getBuilder()
+			{
+				return (Builder<T>) getParentBuilder();
 			}
 
 			@Override
@@ -469,7 +634,8 @@ abstract public class CoolTransfer<T>
 
 									getTransferProgress().doNotify(Send.this, this);
 
-									if (isInterrupted())
+									if (!Flag.CONTINUE.equals(getFlag())
+											|| getTransferProgress().isInterrupted())
 										break;
 								}
 
@@ -504,12 +670,12 @@ abstract public class CoolTransfer<T>
 
 			public InputStream getInputStream()
 			{
-				return mStream;
+				return getBuilder().getInputStream();
 			}
 
 			public String getServerIp()
 			{
-				return mServerIp;
+				return getBuilder().getServerIp();
 			}
 
 			@Override
