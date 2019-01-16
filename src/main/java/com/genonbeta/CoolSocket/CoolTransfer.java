@@ -228,6 +228,17 @@ abstract public class CoolTransfer<T>
 			mProgress = transferProgress;
 			return this;
 		}
+
+		public ParentBuilder<T> skipBytes(long bytes)
+		{
+			if (getSkippedBytes() > 0)
+				getTransferProgress().decrementTransferredByte(getSkippedBytes());
+
+			setSkippedBytes(bytes);
+			getTransferProgress().incrementTransferredByte(bytes);
+
+			return this;
+		}
 	}
 
 	public abstract static class TransferHandler<T> implements Runnable
@@ -314,11 +325,7 @@ abstract public class CoolTransfer<T>
 
 		public void skipBytes(long bytes) throws IOException
 		{
-			if (getParentBuilder().getSkippedBytes() > 0)
-				getTransferProgress().decrementTransferredByte(mParentBuilder.getSkippedBytes());
-
-			getParentBuilder().setSkippedBytes(bytes);
-			getTransferProgress().incrementTransferredByte(bytes);
+			getParentBuilder().skipBytes(bytes);
 		}
 
 		@Override
@@ -336,10 +343,17 @@ abstract public class CoolTransfer<T>
 	{
 		public abstract Flag onTaskPrepareSocket(TransferHandler<T> handler, ServerSocket serverSocket);
 
+		public Handler prepare(Builder<T> builder) {
+			return new Handler(builder);
+		}
+
 		public Handler receive(Builder<T> builder, boolean currentThread)
 		{
-			Handler handler = new Handler(builder);
+			return receive(prepare(builder), currentThread);
+		}
 
+		public Handler receive(Handler handler, boolean currentThread)
+		{
 			if (currentThread)
 				handler.run();
 			else
@@ -418,7 +432,8 @@ abstract public class CoolTransfer<T>
 
 				try {
 					if (Flag.CONTINUE.equals(getFlag())) {
-						setServerSocket(new ServerSocket(getPort()));
+						if (getServerSocket() == null)
+							setServerSocket(new ServerSocket(getPort()));
 
 						if (getTimeout() != CoolSocket.NO_TIMEOUT)
 							getServerSocket().setSoTimeout(getTimeout());
@@ -535,10 +550,17 @@ abstract public class CoolTransfer<T>
 
 	public static abstract class Send<T> extends CoolTransfer<T>
 	{
+		public Handler prepare(Builder<T> builder) {
+			return new Handler(builder);
+		}
+
 		public Handler send(Builder<T> builder, boolean currentThread)
 		{
-			Handler handler = new Handler(builder);
+			return send(prepare(builder), currentThread);
+		}
 
+		public Handler send(Handler handler, boolean currentThread)
+		{
 			if (currentThread)
 				handler.run();
 			else
@@ -608,11 +630,12 @@ abstract public class CoolTransfer<T>
 
 				try {
 					if (Flag.CONTINUE.equals(getFlag())) {
-						setSocket(new Socket());
+						if (getSocket() == null) {
+							setSocket(new Socket());
+							getSocket().bind(null);
+						}
 
-						getSocket().bind(null);
 						getSocket().connect(new InetSocketAddress(getServerIp(), getPort()));
-
 						setFlag(onTaskPrepareSocket(this));
 
 						if (Flag.CONTINUE.equals(getFlag())) {
