@@ -52,8 +52,8 @@ abstract public class CoolSocket
 
 	/**
 	 * Creates a CoolSocket instance that will be available to the local machine.
-	 * @param port Port that CoolSocket will run on. A neutral zero would mean any port that is available.
 	 * @see CoolSocket#setSocketAddress(SocketAddress)
+	 * @param port Port that CoolSocket will run on. A neutral zero would mean any port that is available.
 	 */
 	public CoolSocket(int port)
 	{
@@ -62,9 +62,9 @@ abstract public class CoolSocket
 
 	/**
 	 * Creates a CoolSocket instance that will be available to an address range.
+	 * @see CoolSocket#setSocketAddress(SocketAddress)
 	 * @param address IPv4 address for network interface.
 	 * @param port Port that CoolSocket will run on. A neutral zero would mean any port that is available.
-	 * @see CoolSocket#setSocketAddress(SocketAddress)
 	 */
 	public CoolSocket(String address, int port)
 	{
@@ -114,7 +114,7 @@ abstract public class CoolSocket
 	}
 
 	/**
-	 * Counts the total connection of a client to the CoolSocket.
+	 * Counts the total connection of a client to the CoolSocket server.
 	 * @param address Client address.
 	 * @return The total number of connections.
 	 */
@@ -155,6 +155,8 @@ abstract public class CoolSocket
 
 	/**
 	 * This should not be called before the {@link CoolSocket#start()} is called.
+	 * If the server was started with random port, this returns the port
+	 * assigned to the server.
 	 * @return The port that the server is running on.
 	 */
 	public int getLocalPort()
@@ -179,8 +181,9 @@ abstract public class CoolSocket
 	}
 
 	/**
-	 * The socket address to run the server socket.
-	 * @return The original instance of the socket address.
+	 * This returns the socket address that is used to run the server.
+	 * @return Null if nothing was assigned before the original instance
+	 * of the socket address.
 	 */
 	public SocketAddress getSocketAddress()
 	{
@@ -196,7 +199,8 @@ abstract public class CoolSocket
 	}
 
 	/**
-	 * The timeout before the server gives up waiting for receiving or sending the response.
+	 * Returns The timeout defines the time before the server gives up waiting for receiving or sending the
+	 * response.
 	 * @return The timeout in millisecond. If not defined previously, it might be {@link CoolSocket#NO_TIMEOUT}.
 	 */
 	public int getSocketTimeout()
@@ -236,7 +240,8 @@ abstract public class CoolSocket
 
 	/**
 	 * When a client is connected, to not block the server thread, we call this method to communicate
-	 * with it.
+	 * with it. The socket is different from a normal socket connection where the data should also
+	 * contain a header.
 	 * @param socket The socket that is connected to the client.
 	 * @return True if the switching process to a child thread is successful.
 	 */
@@ -438,8 +443,8 @@ abstract public class CoolSocket
 	}
 
 	/**
-	 * This method will be called when the connection handling failed or something that was expected
-	 * happened.
+	 * This method will be called when the connection handling failed or something that was not
+	 * expected happened.
 	 * @param exception The error that occurred.
 	 */
 	public void onInternalError(Exception exception)
@@ -467,7 +472,8 @@ abstract public class CoolSocket
 		/**
 		 * An instance that uses its own socket with a timeout. Call {@link ActiveConnection(Socket)}
 		 * with null argument if the socket will be provided later.
-		 * @param timeout Timeout that will limit the amount of time that the requests to complete.
+		 * @param timeout Timeout that will limit the amount of time that the requests to wait for
+		 *                another packet to arrive or go.
 		 */
 		public ActiveConnection(int timeout)
 		{
@@ -486,7 +492,8 @@ abstract public class CoolSocket
 		/**
 		 * An instance with timeout and socket connection to a CoolSocket server.
 		 * @param socket The connection to CoolSocket server or client.
-		 * @param timeout Timeout that will limit the amount of time that the requests to complete.
+		 * @param timeout Timeout that will limit the amount of time that the requests to wait for
+		 *                another packet to arrive or go.
 		 */
 		public ActiveConnection(Socket socket, int timeout)
 		{
@@ -550,7 +557,7 @@ abstract public class CoolSocket
 		}
 
 		/**
-		 * A proposed method to determine a connection with its instance.
+		 * A proposed method to determine a connection with a unique id.
 		 * @see ActiveConnection#setId(int)
 		 * @return The class id defined during creation of this instance of the class.
 		 */
@@ -579,8 +586,8 @@ abstract public class CoolSocket
 		}
 
 		/**
-		 * This method use {@link Object#toString()} method which will return the
-		 * unique id to this instance of the class to determine whether they are the same instance.
+		 * This uses {@link Object#toString()} method which will return the unique id to this instance of
+		 * the class to determine whether they are the same instance.
 		 * @param obj An instance of this class is expected and if not then the parent class will handle it.
 		 * @return True if the two object is the same.
 		 */
@@ -594,10 +601,8 @@ abstract public class CoolSocket
 		 * When the opposite side calls {@link ActiveConnection#reply(String)}, this method should
 		 * be invoked so that the communication occurs. The order of the calls should be in order
 		 * with their peers. For instance, when you call {@link ActiveConnection#reply(String)} method,
-		 * the other side should already have called this method or vice versa, which means
-		 * asynchronous task should not block the thread or any other works should only be with
-		 * the other side. To overcome this, you can {@link ActiveConnection#setTimeout(int)}
-		 * with {@link CoolSocket#NO_TIMEOUT} which will make it wait indefinitely.
+		 * the other side should already have called this method or vice versa, which means asynchronous
+		 * task should not block the thread when the data is being transferred.
 		 * @see ActiveConnection#reply(String)
 		 * @return The response that is received.
 		 * @throws IOException When a socket IO error occurs.
@@ -636,7 +641,7 @@ abstract public class CoolSocket
 							response.headerIndex = headerJSON;
 
 							if (headerEndPoint < headerIndex.size())
-								// For the bytes are transferred as they come, we might exceed the
+								// When the bytes are transferred as they come, we might exceed the
 								// point where the header ends. If it is the case, then we trim the
 								// header and the response accordingly
 								receivedMessage.write(headerString.substring(headerEndPoint + (HEADER_SEPARATOR.length())).getBytes());
