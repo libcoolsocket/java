@@ -515,6 +515,7 @@ abstract public class CoolSocket
 			getSocket().bind(null);
 			getSocket().connect(socketAddress);
 
+
 			return this;
 		}
 
@@ -693,8 +694,10 @@ abstract public class CoolSocket
 			remoteOutputStream.flush();
 
 			do {
-				if ((len = inputStream.read(buffer)) > 0)
+				if ((len = inputStream.read(buffer)) > 0) {
 					remoteOutputStream.write(buffer, 0, len);
+					remoteOutputStream.flush();
+				}
 
 				if (calculatedTimeout != NO_TIMEOUT && System.currentTimeMillis() > calculatedTimeout)
 					throw new TimeoutException("Read timed out!");

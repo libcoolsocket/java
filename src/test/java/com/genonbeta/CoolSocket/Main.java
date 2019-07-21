@@ -15,23 +15,33 @@ public class Main
 	{
 		final TestServer testServer = new TestServer();
 
-		log("Server started ?= %s", testServer.startEnsured(5000));
+		log(Main.class, "Server started ?? %s", testServer.startEnsured(5000));
 
 		CoolSocket.connect(client -> {
-			if (!testServer.isServerAlive())
-				return;
+			while (!testServer.isServerAlive()) {
+				// wait until the server is up.
+			}
 
 			try {
 				CoolSocket.ActiveConnection activeConnection = client.connect(new InetSocketAddress(PORT_SERVER), CoolSocket.NO_TIMEOUT);
 
-				activeConnection.reply("Hi server");
+				{
+					log(this.getClass(), "Receive");
+					CoolSocket.ActiveConnection.Response response = activeConnection.receive();
+					log(this.getClass(), response);
+				}
 
-				CoolSocket.ActiveConnection.Response response = activeConnection.receive();
+				log(this.getClass(), "Send");
+				activeConnection.reply("Oh, hi Server!");
 
-				log("Server says: %s; with total character of: %d; header of: %s",
-						response.response,
-						response.totalLength,
-						response.headerIndex.toString());
+				log(this.getClass(), "Send");
+				activeConnection.reply("I was wondering if you can prove you work!");
+
+				{
+					log(this.getClass(), "Receive");
+					CoolSocket.ActiveConnection.Response response = activeConnection.receive();
+					log(this.getClass(), response);
+				}
 
 				activeConnection.getSocket().close();
 			} catch (IOException | TimeoutException e) {
@@ -43,13 +53,11 @@ public class Main
 			// the server has not shut down
 		}
 
-		log("Program exited");
+		log(this.getClass(), "Exited");
 	}
 
 	public static class TestServer extends CoolSocket
 	{
-		private int connectionRemains = 10;
-
 		public TestServer()
 		{
 			super(PORT_SERVER);
@@ -59,50 +67,62 @@ public class Main
 		public void onServerStarted()
 		{
 			super.onServerStarted();
-			log(String.format("Server started on port %d", getLocalPort()));
+			log(this.getClass(), String.format("Server started on port %d", getLocalPort()));
 		}
 
 		@Override
 		public void onServerStopped()
 		{
 			super.onServerStopped();
-			log("Server stopped");
+			log(this.getClass(), "Stopped");
 		}
 
 		@Override
 		protected void onConnected(ActiveConnection activeConnection)
 		{
-			connectionRemains--;
-
 			try {
-				ActiveConnection.Response response = activeConnection.receive();
+				log(this.getClass(), "Receive");
+				activeConnection.reply("Hey, this is Server. How can I help?");
 
-				log("Client says: %s; with total character of: %d; header of: %s",
-						response.response,
-						response.totalLength,
-						response.headerIndex.toString());
+				{
+					log(this.getClass(), "Receive");
+					ActiveConnection.Response response = activeConnection.receive();
+					log(this.getClass(), response);
+				}
 
-				activeConnection.reply(String.format("Thanks, remaining server shutdown step is %s", connectionRemains));
+				{
+					log(this.getClass(), "Receive");
+					ActiveConnection.Response response = activeConnection.receive();
+					log(this.getClass(), response);
+				}
+
+				log(this.getClass(), "Send");
+				activeConnection.reply("I do work and if you are reading this, then this is " +
+						"the proof that you are looking for.");
 
 				activeConnection.getSocket().close();
 			} catch (IOException | TimeoutException e) {
 				e.printStackTrace();
 			}
-
-			if (connectionRemains == 0)
-				stop();
 		}
 	}
 
-	public static void log(String print)
+	public static void log(Class clazz, CoolSocket.ActiveConnection.Response receivedResponse)
 	{
-		log(print, (Object[]) null);
+		log(clazz, "%s - UnixTime: %d, TotalLength: %d; HeaderIndex: %s",
+				receivedResponse.response, System.currentTimeMillis(), receivedResponse.totalLength,
+				receivedResponse.headerIndex.toString());
 	}
 
-	public static void log(String print, Object... formatted)
+	public static void log(Class clazz, String print)
+	{
+		log(clazz, print, (Object[]) null);
+	}
+
+	public static void log(Class clazz, String print, Object... formatted)
 	{
 		StringBuilder stringBuilder = new StringBuilder()
-				.append(Main.class.getName())
+				.append(clazz.getSimpleName())
 				.append("(): ")
 				.append(print);
 
