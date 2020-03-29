@@ -14,7 +14,6 @@ public class Main
     @Test
     public void main()
     {
-        byte[] headerSize = ByteBuffer.allocate(2).putShort((short) 1).array();
         Server server = new Server();
         CoolSocket.Client client = new CoolSocket.Client();
 
