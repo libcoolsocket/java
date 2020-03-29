@@ -4,130 +4,90 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
 
 public class Main
 {
-	public static final int PORT_SERVER = 53535;
+    public static final int PORT_SERVER = 53535;
 
-	@Test
-	public void main()
-	{
-		final TestServer testServer = new TestServer();
+    @Test
+    public void main()
+    {
+        byte[] headerSize = ByteBuffer.allocate(2).putShort((short) 1).array();
+        Server server = new Server();
+        CoolSocket.Client client = new CoolSocket.Client();
 
-		log(Main.class, "Server started ?? %s", testServer.startEnsured(5000));
+        log(Main.class, "Started=%s", server.start(5000));
+        log(Main.class, "Restarted=%s", server.restart(5000));
 
-		CoolSocket.connect(client -> {
-			while (!testServer.isServerAlive()) {
-				// wait until the server is up.
-			}
+        try (ActiveConnection connection = client.connect(new InetSocketAddress(PORT_SERVER), CoolSocket.NO_TIMEOUT)) {
+            log(getClass(), connection.receive());
+            connection.reply("Oh, hi Server!");
+            connection.reply("I was wondering if you can prove you can work!");
+            log(this.getClass(), connection.receive());
+        } catch (IOException | TimeoutException e) {
+            e.printStackTrace();
+        } finally {
+            server.stop();
+        }
+    }
 
-			try {
-				CoolSocket.ActiveConnection activeConnection = client.connect(new InetSocketAddress(PORT_SERVER), CoolSocket.NO_TIMEOUT);
+    public static class Server extends CoolSocket
+    {
+        public Server()
+        {
+            super(PORT_SERVER);
+        }
 
-				{
-					log(this.getClass(), "Receive");
-					CoolSocket.ActiveConnection.Response response = activeConnection.receive();
-					log(this.getClass(), response);
-				}
+        @Override
+        public void onServerStarted()
+        {
+            super.onServerStarted();
+            log(this.getClass(), "Server started on port %d", getLocalPort());
+        }
 
-				log(this.getClass(), "Send");
-				activeConnection.reply("Oh, hi Server!");
+        @Override
+        public void onServerStopped()
+        {
+            super.onServerStopped();
+            log(this.getClass(), "Stopped");
+        }
 
-				log(this.getClass(), "Send");
-				activeConnection.reply("I was wondering if you can prove you work!");
+        @Override
+        protected void onConnected(ActiveConnection activeConnection)
+        {
+            try {
+                activeConnection.reply("Hey, this is Server. How can I help?");
+                log(getClass(), activeConnection.receive());
+                log(getClass(), activeConnection.receive());
+                activeConnection.reply("I do work and if you are reading this, then this is the proof that you " +
+                        "are looking for.");
 
-				{
-					log(this.getClass(), "Receive");
-					CoolSocket.ActiveConnection.Response response = activeConnection.receive();
-					log(this.getClass(), response);
-				}
+                activeConnection.getSocket().close();
+            } catch (IOException | TimeoutException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
-				activeConnection.getSocket().close();
-			} catch (IOException | TimeoutException e) {
-				e.printStackTrace();
-			}
-		});
+    public static void log(Class<?> clazz, Response response)
+    {
+        log(clazz, "msg=\"%s\" length=%d header=%s", response.index, response.length, response.header.toString());
+    }
 
-		while (testServer.isServerAlive()) {
-			// the server has not shut down
-		}
+    public static void log(Class<?> clazz, String print)
+    {
+        log(clazz, print, (Object[]) null);
+    }
 
-		log(this.getClass(), "Exited");
-	}
+    public static void log(Class<?> clazz, String print, Object... formatted)
+    {
+        StringBuilder builder = new StringBuilder()
+                .append(clazz.getSimpleName())
+                .append(": ")
+                .append(print);
 
-	public static class TestServer extends CoolSocket
-	{
-		public TestServer()
-		{
-			super(PORT_SERVER);
-		}
-
-		@Override
-		public void onServerStarted()
-		{
-			super.onServerStarted();
-			log(this.getClass(), String.format("Server started on port %d", getLocalPort()));
-		}
-
-		@Override
-		public void onServerStopped()
-		{
-			super.onServerStopped();
-			log(this.getClass(), "Stopped");
-		}
-
-		@Override
-		protected void onConnected(ActiveConnection activeConnection)
-		{
-			try {
-				log(this.getClass(), "Receive");
-				activeConnection.reply("Hey, this is Server. How can I help?");
-
-				{
-					log(this.getClass(), "Receive");
-					ActiveConnection.Response response = activeConnection.receive();
-					log(this.getClass(), response);
-				}
-
-				{
-					log(this.getClass(), "Receive");
-					ActiveConnection.Response response = activeConnection.receive();
-					log(this.getClass(), response);
-				}
-
-				log(this.getClass(), "Send");
-				activeConnection.reply("I do work and if you are reading this, then this is " +
-						"the proof that you are looking for.");
-
-				activeConnection.getSocket().close();
-			} catch (IOException | TimeoutException e) {
-				e.printStackTrace();
-			}
-		}
-	}
-
-	public static void log(Class clazz, CoolSocket.ActiveConnection.Response receivedResponse)
-	{
-		log(clazz, "%s - UnixTime: %d, TotalLength: %d; HeaderIndex: %s",
-				receivedResponse.response, System.currentTimeMillis(), receivedResponse.totalLength,
-				receivedResponse.headerIndex.toString());
-	}
-
-	public static void log(Class clazz, String print)
-	{
-		log(clazz, print, (Object[]) null);
-	}
-
-	public static void log(Class clazz, String print, Object... formatted)
-	{
-		StringBuilder stringBuilder = new StringBuilder()
-				.append(clazz.getSimpleName())
-				.append("(): ")
-				.append(print);
-
-		System.out.println(print == null
-				? stringBuilder.toString()
-				: String.format(stringBuilder.toString(), formatted));
-	}
+        System.out.println(print == null ? builder.toString() : String.format(builder.toString(), formatted));
+    }
 }

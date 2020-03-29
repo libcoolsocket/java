@@ -6,7 +6,7 @@
 
     <groupId>com.genonbeta.coolsocket</groupId>
     <artifactId>main</artifactId>
-    <version>1.0.3.2</version>
+    <version>1.0.4</version>
     <name>CoolSocket</name>
     <description>Socket implementation</description>
     <url>https://github.com/genonbeta/CoolSocket</url>
