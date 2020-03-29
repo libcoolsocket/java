@@ -198,18 +198,17 @@ public class ActiveConnection implements Closeable
         ByteArrayOutputStream header = new ByteArrayOutputStream();
         ByteArrayOutputStream index = new ByteArrayOutputStream();
 
-        Response response = new Response();
-        response.remote = getSocket().getRemoteSocketAddress();
-
         final byte[] buffer = new byte[8096];
         final int headerMaxLength = 2;
+        JSONObject headerAsJson = null;
         int headerLength = -1;
+        int indexLength = -1;
         int len;
         int offset = 0;
         int readAsMuch = headerMaxLength; // first get the 16-bit header data length
         long lastRead = System.nanoTime();
 
-        while (response.length == -1 || index.size() < response.length) {
+        while (indexLength == -1 || index.size() < indexLength) {
             if ((len = inputStream.read(buffer, offset, readAsMuch)) > 0) {
                 lastRead = System.nanoTime();
 
@@ -220,15 +219,15 @@ public class ActiveConnection implements Closeable
                             break;
                     } else
                         offset = headerMaxLength - len;
-                } else if (response.length < 0) {
+                } else if (indexLength < 0) {
                     header.write(buffer, 0, len);
                     header.flush();
 
                     if (header.size() == headerLength) {
-                        response.header = new JSONObject(header.toString());
-                        response.length = response.header.getLong(HEADER_ITEM_LENGTH);
+                        headerAsJson = new JSONObject(header.toString());
+                        indexLength = headerAsJson.getInt(HEADER_ITEM_LENGTH);
 
-                        if (response.length <= 0)
+                        if (indexLength <= 0)
                             break;
                     }
                 } else {
@@ -239,10 +238,10 @@ public class ActiveConnection implements Closeable
                 if (headerLength > -1) {
                     offset = 0;
 
-                    if (response.length < 0) {
+                    if (indexLength < 0) {
                         readAsMuch = Math.min(headerLength - header.size(), buffer.length);
                     } else {
-                        readAsMuch = (int) Math.min(response.length - index.size(), buffer.length);
+                        readAsMuch = Math.min(indexLength - index.size(), buffer.length);
                     }
                 }
             }
@@ -251,9 +250,7 @@ public class ActiveConnection implements Closeable
                 throw new TimeoutException("Read timed out!");
         }
 
-        response.index = index.toString();
-
-        return response;
+        return new Response(getSocket().getRemoteSocketAddress(), headerAsJson, index.toString(), indexLength);
     }
 
     /**

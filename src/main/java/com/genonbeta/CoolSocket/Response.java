@@ -5,8 +5,7 @@ import org.json.JSONObject;
 import java.net.SocketAddress;
 
 /**
- * This class represents the response received from the opposite side that the CoolSocket
- * is connected to.
+ * This class represents the response received from the opposite side that the CoolSocket is connected to.
  *
  * @see ActiveConnection#receive()
  */
@@ -30,15 +29,19 @@ public class Response
     public String index;
 
     /**
-     * The length of the response.
+     * The length of the index.
      */
-    public long length = -1;
+    public int length;
 
     /**
      * Creates an instance of this class. This does nothing for all the related
      * members are public.
      */
-    public Response()
+    Response(SocketAddress remote, JSONObject header, String index, int length)
     {
+        this.remote = remote;
+        this.header = header;
+        this.index = index;
+        this.length = length;
     }
 }

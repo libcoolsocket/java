@@ -74,7 +74,7 @@
                     <source>8</source>
                     <show>private</show>
                     <nohelp>true</nohelp>
-                    <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
+                    <javadocExecutable>/usr/bin/javadoc</javadocExecutable>
                 </configuration>
                 <executions>
                     <execution>
