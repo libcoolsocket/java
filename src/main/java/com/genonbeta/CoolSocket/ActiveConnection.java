@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
 
@@ -40,7 +41,7 @@ public class ActiveConnection implements Closeable
      * @param timeout Timeout that will limit the amount of time that the requests to wait for
      *                another packet to arrive or go.
      */
-    public ActiveConnection(int timeout)
+    public ActiveConnection(int timeout) throws SocketException
     {
         this(new Socket(), timeout);
     }
@@ -62,7 +63,7 @@ public class ActiveConnection implements Closeable
      * @param timeout Timeout that will limit the amount of time that the requests to wait for
      *                another packet to arrive or go.
      */
-    public ActiveConnection(Socket socket, int timeout)
+    public ActiveConnection(Socket socket, int timeout) throws SocketException
     {
         this(socket);
         setTimeout(timeout);
@@ -84,9 +85,6 @@ public class ActiveConnection implements Closeable
      */
     public ActiveConnection connect(SocketAddress socketAddress) throws IOException
     {
-        if (getTimeout() != NO_TIMEOUT)
-            getSocket().setSoTimeout(getTimeout());
-
         getSocket().bind(null);
         getSocket().connect(socketAddress);
 
@@ -246,7 +244,7 @@ public class ActiveConnection implements Closeable
                 }
             }
 
-            if (getTimeout() != NO_TIMEOUT && System.nanoTime() - lastRead > getTimeout() * 1e6)
+            if (getTimeout() > NO_TIMEOUT && System.nanoTime() - lastRead > getTimeout() * 1e6)
                 throw new TimeoutException("Read timed out!");
         }
 
@@ -283,12 +281,10 @@ public class ActiveConnection implements Closeable
         String headerString = header.put(HEADER_ITEM_LENGTH, outputBytes.length).toString();
 
         // The first 16 bit data represents length of the header
-        if (headerString.length() > 1 << 16)
-            throw new IllegalStateException("The maximum length of an header can be " + (1 << 16));
+        if (headerString.length() > CoolSocket.HEADER_MAX_LENGTH)
+            throw new IllegalStateException("The maximum length of a header can be " + (CoolSocket.HEADER_MAX_LENGTH));
 
-        byte[] headerSize = ByteBuffer.allocate(2).putShort((short) headerString.length()).array();
-
-        outputStream.write(headerSize);
+        outputStream.write(ByteBuffer.allocate(2).putShort((short) headerString.length()).array());
         outputStream.flush();
         outputStream.write(headerString.getBytes());
         outputStream.flush();
@@ -304,15 +300,15 @@ public class ActiveConnection implements Closeable
             outputStream.write(buffer, 0, len);
             outputStream.flush();
 
-            if (getTimeout() != NO_TIMEOUT && System.nanoTime() - writeStart > getTimeout() * 1e6)
+            if (getTimeout() > NO_TIMEOUT && System.nanoTime() - writeStart > getTimeout() * 1e6)
                 throw new TimeoutException("Operation timed out!");
         }
     }
 
     /**
-     * Sets the id for this class.
+     * This ID for this instance of CoolSocket can be used to identify it.
      *
-     * @param id That you want to change to.
+     * @param id that identifies this instance
      */
     public void setId(int id)
     {
@@ -325,8 +321,12 @@ public class ActiveConnection implements Closeable
      * @param timeout The timout in milliseconds.
      * @see ActiveConnection#getTimeout()
      */
-    public void setTimeout(int timeout)
+    public void setTimeout(int timeout) throws SocketException
     {
+        if (timeout < 0)
+            throw new NumberFormatException("Timeout value can only be >= 0");
+
         mTimeout = timeout;
+        getSocket().setSoTimeout(timeout);
     }
 }

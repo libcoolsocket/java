@@ -15,7 +15,9 @@ public abstract class CoolSocket
 {
     public static final String TAG = CoolSocket.class.getSimpleName();
 
-    public static final int NO_TIMEOUT = -1;
+    public static final int
+            NO_TIMEOUT = 0,
+            HEADER_MAX_LENGTH = Short.MAX_VALUE;
 
     public static final String HEADER_ITEM_LENGTH = "length";
 
@@ -207,45 +209,34 @@ public abstract class CoolSocket
      * contain a header.
      *
      * @param socket The socket that is connected to the client.
-     * @return True if the switching process to a child thread is successful.
      */
-    protected boolean respondRequest(final Socket socket)
+    protected void respondRequest(final Socket socket)
     {
-        if (getConnections().size() <= mMaxConnections || mMaxConnections == 0) {
-            final ActiveConnection connectionHandler = new ActiveConnection(socket, mSocketTimeout);
+        if (mMaxConnections > 0 && getConnections().size() >= mMaxConnections)
+            return;
 
-            synchronized (getConnections()) {
-                getConnections().add(connectionHandler);
+        getExecutor().submit(() -> {
+            ActiveConnection connection = null;
+
+            try (ActiveConnection activeConnection = new ActiveConnection(socket, mSocketTimeout)) {
+                if (mSocketTimeout > NO_TIMEOUT)
+                    activeConnection.getSocket().setSoTimeout(mSocketTimeout);
+
+                synchronized (mConnections) {
+                    mConnections.add(activeConnection);
+                }
+
+                connection = activeConnection;
+                onConnected(activeConnection);
+            } catch (Exception e) {
+                onInternalError(e);
+            } finally {
+                if (connection != null)
+                    synchronized (mConnections) {
+                        mConnections.remove(connection);
+                    }
             }
-
-            getExecutor().submit(() -> {
-                try {
-                    if (mSocketTimeout > NO_TIMEOUT)
-                        connectionHandler.getSocket().setSoTimeout(mSocketTimeout);
-                } catch (SocketException e) {
-                    e.printStackTrace();
-                }
-
-                onConnected(connectionHandler);
-
-                try {
-                    if (!socket.isClosed()) {
-                        System.out.println(TAG + ": You should close connections in the end of onConnected(" +
-                                "ActiveConnection) method");
-                        socket.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } finally {
-                    synchronized (getConnections()) {
-                        getConnections().remove(connectionHandler);
-                    }
-                }
-            });
-        } else
-            return false;
-
-        return true;
+        });
     }
 
     /**
@@ -424,6 +415,7 @@ public abstract class CoolSocket
      */
     public void onInternalError(Exception exception)
     {
+        exception.printStackTrace();
     }
 
     /**
@@ -447,7 +439,8 @@ public abstract class CoolSocket
                 }
                 while (!CoolSocket.this.isInterrupted());
             } catch (IOException e) {
-                CoolSocket.this.onInternalError(e);
+                if (!isInterrupted())
+                    CoolSocket.this.onInternalError(e);
             } finally {
                 onServerStopped();
             }
@@ -471,8 +464,7 @@ public abstract class CoolSocket
          */
         public ActiveConnection connect(SocketAddress socketAddress, int operationTimeout) throws IOException
         {
-            return new ActiveConnection(operationTimeout)
-                    .connect(socketAddress);
+            return new ActiveConnection(operationTimeout).connect(socketAddress);
         }
 
         /**

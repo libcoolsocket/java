@@ -14,6 +14,11 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Deprecated for being overly complicated.
+ * @param <T> anything that can be identified during the process
+ */
+@Deprecated
 abstract public class CoolTransfer<T>
 {
 	public final static int DELAY_DISABLED = -1;
