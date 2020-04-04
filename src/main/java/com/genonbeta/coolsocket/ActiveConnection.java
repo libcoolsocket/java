@@ -1,4 +1,4 @@
-package com.genonbeta.CoolSocket;
+package com.genonbeta.coolsocket;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -11,8 +11,8 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
 
-import static com.genonbeta.CoolSocket.CoolSocket.HEADER_ITEM_LENGTH;
-import static com.genonbeta.CoolSocket.CoolSocket.NO_TIMEOUT;
+import static com.genonbeta.coolsocket.CoolSocket.HEADER_ITEM_LENGTH;
+import static com.genonbeta.coolsocket.CoolSocket.NO_TIMEOUT;
 
 /**
  * This class represents a connection to CoolServer client and server.

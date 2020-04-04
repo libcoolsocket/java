@@ -1,4 +1,4 @@
-package com.genonbeta.CoolSocket;
+package com.genonbeta.coolsocket;
 
 import org.json.JSONObject;
 

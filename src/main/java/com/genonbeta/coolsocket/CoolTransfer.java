@@ -1,4 +1,4 @@
-package com.genonbeta.CoolSocket;
+package com.genonbeta.coolsocket;
 
 import java.io.File;
 import java.io.FileInputStream;
