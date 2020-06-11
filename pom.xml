@@ -9,7 +9,7 @@
     <version>1.0.4</version>
     <name>CoolSocket</name>
     <description>Socket implementation</description>
-    <url>https://github.com/genonbeta/CoolSocket</url>
+    <url>https://github.com//libcoolsocket/java</url>
     <licenses>
         <license>
             <name>General Public Licence, Version 2.0</name>
@@ -24,9 +24,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>https://github.com/genonbeta/CoolSocket.git</connection>
-        <developerConnection>https://github.com/genonbeta/CoolSocket.git</developerConnection>
-        <url>https://github.com/genonbeta/CoolSocket</url>
+        <connection>https://github.com/libcoolsocket/java.git</connection>
+        <developerConnection>https://github.com/libcoolsocket/java.git</developerConnection>
+        <url>https://github.com/libcoolsocket/java</url>
     </scm>
 
     <repositories>
@@ -50,7 +50,13 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>5.</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>RELEASE</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
