@@ -1,63 +1,63 @@
 package com.genonbeta.coolsocket;
 
+import com.genonbeta.coolsocket.server.ConnectionManager;
+import com.genonbeta.coolsocket.server.DefaultServerExecutorFactory;
+import com.genonbeta.coolsocket.server.ServerExecutor;
+import com.genonbeta.coolsocket.server.ServerExecutorFactory;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 import java.io.IOException;
-import java.net.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.util.logging.Logger;
 
 /**
- * CoolSocket is TCP socket server with a set of features like keep-alive connections, header
- * support, connection management etc. It only uses native libraries and JSON to do its job.
+ * CoolSocket is a TCP socket implementation for various platforms aiming to be fast, easy to work on.
  */
 public abstract class CoolSocket
 {
-    public static final String TAG = CoolSocket.class.getSimpleName();
+    public static final int NO_TIMEOUT = 0;
 
     public static final int
-            NO_TIMEOUT = 0,
-            HEADER_MAX_LENGTH = Short.MAX_VALUE;
+            FLAG_NONE = 0,
+            FLAG_DATA_CHUNKED = 1 << 1; // Chunked if not single
 
-    public static final String HEADER_ITEM_LENGTH = "length";
-
-    private final ArrayList<ActiveConnection> mConnections = new ArrayList<>();
-    private ExecutorService mExecutor;
-    private Thread mServerThread;
-    private ServerSocket mServerSocket;
-    private SocketAddress mSocketAddress = null;
-    private int mSocketTimeout = NO_TIMEOUT; // no timeout
-    private int mMaxConnections = 10;
-    private ServerRunnable mSocketRunnable = new ServerRunnable();
+    private final Logger logger = Logger.getLogger(toString());
+    private final ConfigFactory configFactory;
+    private ServerExecutorFactory serverExecutorFactory;
+    private ConnectionManager connectionManager;
+    private Session serverSession;
 
     /**
-     * Creates a CoolSocket instance.
-     */
-    public CoolSocket()
-    {
-    }
-
-    /**
-     * Creates a CoolSocket instance that will be available to the local machine.
+     * Create an instance that will use the default config factory.
      *
-     * @param port Port that CoolSocket will run on. A neutral zero would mean any port that is available.
-     * @see CoolSocket#setSocketAddress(SocketAddress)
+     * @param port that the server socket will run on. Use "0" to randomly assign to an available port.
      */
     public CoolSocket(int port)
     {
-        mSocketAddress = new InetSocketAddress(port);
+        this(new InetSocketAddress(port));
     }
 
     /**
-     * Creates a CoolSocket instance that will be available to an address range.
+     * Create an instance that will use the default config factory.
      *
-     * @param address IPv4 address for network interface.
-     * @param port    Port that CoolSocket will run on. A neutral zero would mean any port that is available.
-     * @see CoolSocket#setSocketAddress(SocketAddress)
+     * @param address that the server will be assigned to.
      */
-    public CoolSocket(String address, int port)
+    public CoolSocket(SocketAddress address)
     {
-        mSocketAddress = new InetSocketAddress(address, port);
+        this(new DefaultConfigFactory(address, NO_TIMEOUT, NO_TIMEOUT));
+    }
+
+    /**
+     * Create an instance with its own config factory.
+     *
+     * @param configFactory that will produce ServerSocket, and configure sockets.
+     */
+    public CoolSocket(ConfigFactory configFactory)
+    {
+        this.configFactory = configFactory;
     }
 
     /**
@@ -65,59 +65,16 @@ public abstract class CoolSocket
      *
      * @param activeConnection The connection object that represents the client.
      */
-    protected abstract void onConnected(ActiveConnection activeConnection);
+    public abstract void onConnected(ActiveConnection activeConnection);
 
     /**
-     * Connect to a CoolSocket server.
+     * Get the config factory instance that loads settings on to sockets.
      *
-     * @param handler The handler that will handle the connection.
+     * @return the config factory instance.
      */
-    public static void connect(final Client.ConnectionHandler handler)
+    protected ConfigFactory getConfigFactory()
     {
-        new Thread(() -> handler.onConnect(new Client())).start();
-    }
-
-    /**
-     * Counts the total connection of a client to the CoolSocket server.
-     *
-     * @param address Client address.
-     * @return The total number of connections.
-     */
-    public int getConnectionCountByAddress(InetAddress address)
-    {
-        int returnObject = 0;
-
-        for (ActiveConnection activeConnection : getConnections())
-            if (activeConnection.getAddress().equals(address))
-                returnObject++;
-
-        return returnObject;
-    }
-
-    /**
-     * Returns the active connections to the server. You should copy the members if the task you
-     * need to carry out will take long. The copying process should be synchronized to prevent
-     * errors.
-     *
-     * @return The original list instance that holds the connections objects.
-     */
-    public synchronized List<ActiveConnection> getConnections()
-    {
-        return mConnections;
-    }
-
-    /**
-     * Returns the executor that starts child threads as needed. The child threads are used to allow
-     * simultaneous connections.
-     *
-     * @return The executor.
-     */
-    public ExecutorService getExecutor()
-    {
-        if (mExecutor == null)
-            mExecutor = Executors.newFixedThreadPool(mMaxConnections);
-
-        return mExecutor;
+        return configFactory;
     }
 
     /**
@@ -129,78 +86,54 @@ public abstract class CoolSocket
      */
     public int getLocalPort()
     {
-        return getServerSocket().getLocalPort();
+        return inSession() ? getSession().;
     }
 
     /**
-     * @return The server socket object.
-     */
-    protected ServerSocket getServerSocket()
-    {
-        return mServerSocket;
-    }
-
-    /**
-     * @return The server thread.
-     */
-    protected Thread getServerThread()
-    {
-        return mServerThread;
-    }
-
-    /**
-     * This returns the socket address that is used to run the server.
+     * The session that is still accepting requests and hasn't been interrupted or still waiting to exit. This may
+     * return null if there is no active session.
      *
-     * @return Null if nothing was assigned before the original instance
-     * of the socket address.
+     * @return the session that runs the server process.
      */
-    public SocketAddress getSocketAddress()
+    public Session getSession()
     {
-        return mSocketAddress;
+        return serverSession;
     }
 
     /**
-     * @return The socket runnable.
+     * @return the server executor factory instance which defaults when there is none.
      */
-    protected ServerRunnable getSocketRunnable()
+    public ServerExecutorFactory getServerExecutorFactory()
     {
-        return mSocketRunnable;
+        if (serverExecutorFactory == null)
+            serverExecutorFactory = new DefaultServerExecutorFactory();
+
+        return serverExecutorFactory;
     }
 
     /**
-     * Returns The timeout defines the time before the server gives up waiting for receiving or sending the
-     * response.
+     * Check whether there is an active session.
      *
-     * @return The timeout in millisecond. If not defined previously, it might be {@link CoolSocket#NO_TIMEOUT}.
+     * @return true when there is a session and hasn't exited.
      */
-    public int getSocketTimeout()
+    public boolean inSession()
     {
-        return mSocketTimeout;
-    }
-
-    /**
-     * This checks whether there is a server thread and if it is running
-     *
-     * @return False if the thread is not running, true otherwise.
-     */
-    public boolean isInterrupted()
-    {
-        return getServerThread() == null || getServerThread().isInterrupted();
+        return serverSession != null;
     }
 
     public boolean isListening()
     {
-        return getServerSocket() != null && getServerSocket().isBound() && !getServerSocket().isClosed();
+        throw new NotImplementedException();
     }
 
     /**
-     * This checks if the server thread is alive.
+     * Get the logger for this CoolSocket instance.
      *
-     * @return True if it is.
+     * @return the logger instance.
      */
-    public boolean isServerAlive()
+    public Logger getLogger()
     {
-        return getServerThread() != null && getServerThread().isAlive();
+        return logger;
     }
 
     /**
@@ -210,76 +143,9 @@ public abstract class CoolSocket
      *
      * @param socket The socket that is connected to the client.
      */
-    protected void respondRequest(final Socket socket)
+    public void respondRequest(final Socket socket)
     {
-        if (mMaxConnections > 0 && getConnections().size() >= mMaxConnections)
-            return;
-
-        getExecutor().submit(() -> {
-            ActiveConnection connection = null;
-
-            try (ActiveConnection activeConnection = new ActiveConnection(socket, mSocketTimeout)) {
-                if (mSocketTimeout > NO_TIMEOUT)
-                    activeConnection.getSocket().setSoTimeout(mSocketTimeout);
-
-                synchronized (mConnections) {
-                    mConnections.add(activeConnection);
-                }
-
-                connection = activeConnection;
-                onConnected(activeConnection);
-            } catch (Exception e) {
-                onInternalError(e);
-            } finally {
-                if (connection != null)
-                    synchronized (mConnections) {
-                        mConnections.remove(connection);
-                    }
-            }
-        });
-    }
-
-    /**
-     * Replaces the executor.
-     *
-     * @param executor The executor that will handle starting threads for requests and connections.
-     */
-    public void setExecutor(ExecutorService executor)
-    {
-        mExecutor = executor;
-    }
-
-    /**
-     * Defines the maximum connection number that the server is allowed to handle at the same time.
-     * There is always a limit for safety purposes {@link CoolSocket#mMaxConnections}.
-     *
-     * @param value A positive number to limit the maximum allowed connections.
-     */
-    public void setMaxConnections(int value)
-    {
-        mMaxConnections = value;
-    }
-
-    /**
-     * Replaces the socket address that the server will run on.
-     *
-     * @param address The address that is used to start the server.
-     */
-    public void setSocketAddress(SocketAddress address)
-    {
-        mSocketAddress = address;
-    }
-
-    /**
-     * Sets the timeout that limits the time CoolSocket waits for the response delivery. The limit is
-     * between the last time a byte arrives and the current time, not the time request was made.
-     *
-     * @param timeout Time in millisecond.
-     * @see CoolSocket#getSocketTimeout()
-     */
-    public void setSocketTimeout(int timeout)
-    {
-        mSocketTimeout = timeout;
+        connectionManager.handleClient(this, new ActiveConnection(socket));
     }
 
     /**
@@ -290,7 +156,6 @@ public abstract class CoolSocket
      * if the server will be started{@link CoolSocket#start()}
      * @see CoolSocket#start()
      * @see CoolSocket#start(int)
-     * @see CoolSocket#onServerStarted()
      */
     public boolean restart(int timeout)
     {
@@ -310,65 +175,30 @@ public abstract class CoolSocket
     }
 
     /**
-     * Starts the server.
+     * Start listening for connections.
      *
-     * @return Returns if the server will be started.
-     * @see CoolSocket#restart(int)
-     * @see CoolSocket#start(int)
-     * @see CoolSocket#onServerStarted()
+     * @return the session which represents the listening session.
+     * @throws IOException if an unrecoverable error occurs.
      */
-    public boolean start()
+    public Session startAsynchronously() throws IOException
     {
-        if (getServerSocket() == null || getServerSocket().isClosed()) {
-            try {
-                mServerSocket = new ServerSocket();
-                getServerSocket().bind(mSocketAddress);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
-        }
-
-        if (!isServerAlive()) {
-            mServerThread = new Thread(getSocketRunnable());
-
-            getServerThread().setDaemon(true);
-            getServerThread().setName(TAG + " Main Thread");
-        } else if (getServerThread().isAlive())
-            return false;
-
-        getServerThread().start();
-
-        return true;
-    }
-
-    /**
-     * Starts the server ensuring the server socket has started listening.
-     *
-     * @param timeout The time in milliseconds
-     * @return True if the server is started and ready to accept new connections.
-     * @see CoolSocket#start()
-     * @see CoolSocket#restart(int)
-     * @see CoolSocket#onServerStarted()
-     */
-    public boolean start(int timeout)
-    {
-        if (!isServerAlive())
-            start();
-
         if (isListening())
-            return true;
+            throw new IllegalStateException("The server is already running.");
 
-        if (timeout <= 0)
-            throw new IllegalStateException("Can't supply timeout as zero");
+        ServerSocket serverSocket = getConfigFactory().createServer();
+        ServerExecutor serverExecutor = getServerExecutorFactory().createServerExecutor();
 
-        double timeoutAt = System.nanoTime() + timeout * 1e6;
-        while (System.nanoTime() < timeoutAt)
-            if (isListening())
-                return true;
+        Session session = new Session(serverSocket, serverExecutor);
+        session.startSession();
 
-        return false;
+        return session;
     }
+
+    public void start() throws IOException
+    {
+
+    }
+
 
     /**
      * Stops the CoolSocket server.
@@ -377,74 +207,9 @@ public abstract class CoolSocket
      */
     public boolean stop()
     {
-        if (isInterrupted())
-            return false;
 
-        getServerThread().interrupt();
-
-        if (!getServerSocket().isClosed()) {
-            try {
-                getServerSocket().close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
 
         return true;
-    }
-
-    /**
-     * Override this method to be informed when the server is started.
-     */
-    public void onServerStarted()
-    {
-    }
-
-    /**
-     * Override this method to be informed when the server is stopped.
-     */
-    public void onServerStopped()
-    {
-    }
-
-    /**
-     * This method will be called when the connection handling failed or something that was not
-     * expected happened.
-     *
-     * @param exception The error that occurred.
-     */
-    public void onInternalError(Exception exception)
-    {
-        exception.printStackTrace();
-    }
-
-    /**
-     * Handles the running process of the server.
-     */
-    private class ServerRunnable implements Runnable
-    {
-        @Override
-        public void run()
-        {
-            try {
-                onServerStarted();
-
-                do {
-                    Socket request = CoolSocket.this.getServerSocket().accept();
-
-                    if (CoolSocket.this.isInterrupted())
-                        request.close();
-                    else
-                        respondRequest(request);
-                }
-                while (!CoolSocket.this.isInterrupted());
-            } catch (IOException e) {
-                if (!isInterrupted())
-                    CoolSocket.this.onInternalError(e);
-            } finally {
-                onServerStopped();
-            }
-        }
     }
 
     /**
@@ -453,19 +218,6 @@ public abstract class CoolSocket
     public static class Client
     {
         private Object mReturn;
-
-        /**
-         * Connects to a CoolSocket server.
-         *
-         * @param socketAddress    The server address.
-         * @param operationTimeout The timeout before the operation is declared to have failed.
-         * @return The connection object.
-         * @throws IOException When the connection fails to establish.
-         */
-        public ActiveConnection connect(SocketAddress socketAddress, int operationTimeout) throws IOException
-        {
-            return new ActiveConnection(operationTimeout).connect(socketAddress);
-        }
 
         /**
          * This emulates the connection to a server.
@@ -501,21 +253,99 @@ public abstract class CoolSocket
         {
             mReturn = returnedObject;
         }
+    }
+
+    /**
+     * The class that holds the server related data for an active session.
+     */
+    private class Session implements Runnable
+    {
+        /**
+         * The thread that will run this session.
+         */
+        public Thread serverThread;
+
+        public ServerSocket serverSocket;
+
+        public ServerExecutor serverExecutor;
 
         /**
-         * A class that emulates a connection to a CoolSocket server.
+         * A session can only run once. This field ensures that.
          */
-        public interface ConnectionHandler
+        private boolean started = false;
+
+        /**
+         * Whether this session has started listening or exited.
+         */
+        private boolean listening = false;
+
+        /**
+         * Create a session with the given object which should only be known to this class. Any object here is useless
+         * after the run() method of this class exits. This class assigns itself to the CoolSocket instance that owns
+         * it whenever a new session starts and erases itself from it whenever it exits.
+         *
+         * @param serverSocket   accepting the connections for this server session.
+         * @param serverExecutor runs the server with the given data objects in this instance of session.
+         */
+        public Session(ServerSocket serverSocket, ServerExecutor serverExecutor)
         {
-            /**
-             * There is nothing special about this. It just returns a {@link Client} object. But it
-             * is here in the hope that the client will do some special stuff before the it is used
-             * by the target. To do so, you should override this class and do some magic before
-             * calling this method.
-             *
-             * @param client The client that is used to connect.
-             */
-            void onConnect(Client client);
+            this.serverSocket = serverSocket;
+            this.serverExecutor = serverExecutor;
+        }
+
+        public ServerExecutor getServerExecutor()
+        {
+            return serverExecutor;
+        }
+
+        public ServerSocket getServerSocket()
+        {
+            return serverSocket;
+        }
+
+        public Thread getServerThread()
+        {
+            return serverThread;
+        }
+
+        public boolean isStarted()
+        {
+            return started;
+        }
+
+        public boolean isListening()
+        {
+            return listening;
+        }
+
+        private void startSession()
+        {
+            if (started)
+                throw new IllegalStateException("This session has already been run.");
+
+            started = true;
+            serverThread = new Thread(this);
+
+            serverThread.start();
+        }
+
+        @Override
+        public void run()
+        {
+            if (!started)
+                throw new IllegalStateException("Session.started cannot be false. Please ensure Session runnable " +
+                        " starts itself with startSession() method so that it can ensure a safe usage.");
+
+            listening = true;
+
+            try {
+                serverExecutor.onSession(CoolSocket.this, getConfigFactory(), serverSocket);
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                CoolSocket.this.serverSession = null;
+                listening = false;
+            }
         }
     }
 }

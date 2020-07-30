@@ -1,18 +1,26 @@
 package com.genonbeta.coolsocket;
 
-import org.junit.Test;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * This class portrays how CoolSocket was intended to work.
+ */
 public class Main
 {
     public static final int PORT_SERVER = 53535;
 
-    @Test
-    public void main()
+    public static void main(String[] args)
     {
+        connection();
+        analyzeSpeed();
+    }
+
+    public static void connection()
+    {
+        log(Main.class, "-- BEGINNING OF connection() --");
+
         Server server = new Server();
         CoolSocket.Client client = new CoolSocket.Client();
 
@@ -20,10 +28,10 @@ public class Main
         log(Main.class, "Restarted=%s", server.restart(5000));
 
         try (ActiveConnection connection = client.connect(new InetSocketAddress(PORT_SERVER), CoolSocket.NO_TIMEOUT)) {
-            log(getClass(), connection.receive());
+            log(Main.class, connection.receive());
             connection.reply("Oh, hi Server!");
             connection.reply("I was wondering if you can prove you can work!");
-            log(this.getClass(), connection.receive());
+            log(Main.class, connection.receive());
         } catch (IOException | TimeoutException e) {
             e.printStackTrace();
         } finally {
@@ -31,22 +39,23 @@ public class Main
         }
     }
 
-    @Test
-    public void speedTest()
+    public static void analyzeSpeed()
     {
+        log(Main.class, "-- BEGINNING OF analyzeSpeed() --\n");
+
         final int maxLoop = 100;
         int port = 5971;
 
         CoolSocket.Client client = new CoolSocket.Client();
-        CoolSocket coolSocket = new CoolSocket(port)
+        CoolSocket coolSocket = new CoolSocket(new InetSocketAddress())
         {
             @Override
-            protected void onConnected(ActiveConnection activeConnection)
+            public void onConnected(ActiveConnection activeConnection)
             {
                 for (int i = 0; i < maxLoop; i++) {
                     try {
                         activeConnection.reply(String.valueOf(i));
-                    } catch (TimeoutException | IOException e) {
+                    } catch (IOException e) {
                         e.printStackTrace();
                         break;
                     }
@@ -92,9 +101,8 @@ public class Main
                 baseTime = time;
             }
 
-            System.out.println("It took " + (endTime - startTime) / 1e9 + "secs to complete " + maxLoop + " requests");
-
-
+            System.out.println("\tIt took " + (endTime - startTime) / 1e9 + "secs to complete " + maxLoop
+                    + " requests");
         } catch (IOException | TimeoutException e) {
             coolSocket.stop();
             e.printStackTrace();
@@ -123,7 +131,7 @@ public class Main
         }
 
         @Override
-        protected void onConnected(ActiveConnection activeConnection)
+        public void onConnected(ActiveConnection activeConnection)
         {
             try {
                 activeConnection.reply("Hey, this is Server. How can I help?");
@@ -139,7 +147,8 @@ public class Main
 
     public static void log(Class<?> clazz, Response response)
     {
-        log(clazz, "msg=\"%s\" length=%d header=%s", response.index, response.length, response.header.toString());
+        log(clazz, "indexLength=%d headerLength=%d msg=\"%s\" header=%s", response.indexLength,
+                response.headerLength, response.index, response.header.toString());
     }
 
     public static void log(Class<?> clazz, String print)

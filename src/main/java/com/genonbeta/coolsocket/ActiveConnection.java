@@ -11,7 +11,7 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
 
-import static com.genonbeta.coolsocket.CoolSocket.HEADER_ITEM_LENGTH;
+import static com.genonbeta.coolsocket.CoolSocket.FLAG_NONE;
 import static com.genonbeta.coolsocket.CoolSocket.NO_TIMEOUT;
 
 /**
@@ -21,9 +21,7 @@ public class ActiveConnection implements Closeable
 {
     public static final String TAG = ActiveConnection.class.getSimpleName();
 
-    private Socket mSocket;
-    private int mTimeout = NO_TIMEOUT;
-    private int mId = getClass().hashCode();
+    private final Socket mSocket;
 
     /**
      * An instance that uses its own socket. Call {@link ActiveConnection(Socket)} with null
@@ -66,7 +64,7 @@ public class ActiveConnection implements Closeable
     public ActiveConnection(Socket socket, int timeout) throws SocketException
     {
         this(socket);
-        setTimeout(timeout);
+        socket.setSoTimeout(timeout);
     }
 
     @Override
@@ -74,6 +72,19 @@ public class ActiveConnection implements Closeable
     {
         if (mSocket != null)
             mSocket.close();
+    }
+
+    /**
+     * Connects to a CoolSocket server.
+     *
+     * @param socketAddress    The server address.
+     * @param operationTimeout The timeout before the operation is declared to have failed.
+     * @return The connection object.
+     * @throws IOException When the connection fails to establish.
+     */
+    public ActiveConnection connect(SocketAddress socketAddress, int operationTimeout) throws IOException
+    {
+        return new ActiveConnection(operationTimeout).connect(socketAddress);
     }
 
     /**
@@ -121,27 +132,6 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * This should be called after ensuring that the socket is provided.
-     *
-     * @return The readable address the socket is bound to.
-     */
-    public String getClientAddress()
-    {
-        return getAddress().getHostAddress();
-    }
-
-    /**
-     * A proposed method to determine a connection with a unique id.
-     *
-     * @return The class id defined during creation of this instance of the class.
-     * @see ActiveConnection#setId(int)
-     */
-    public int getId()
-    {
-        return mId;
-    }
-
-    /**
      * The socket that is used to communicate
      *
      * @return Null if no socket was provided or the socket instance.
@@ -149,17 +139,6 @@ public class ActiveConnection implements Closeable
     public Socket getSocket()
     {
         return mSocket;
-    }
-
-    /**
-     * On server side, this is defined with the given server timeout by default. When used on client
-     * side, it is defined by the method associated with it.
-     *
-     * @return Timeout in milliseconds.
-     */
-    public int getTimeout()
-    {
-        return mTimeout;
     }
 
     /**
@@ -175,6 +154,61 @@ public class ActiveConnection implements Closeable
         return obj instanceof ActiveConnection ? obj.toString().equals(toString()) : super.equals(obj);
     }
 
+    private ByteBuffer readAsByteBuffer(InputStream inputStream, byte[] buffer, int offset, int length)
+            throws IOException, TimeoutException
+    {
+        return ByteBuffer.wrap(read(inputStream, buffer, length), offset, length);
+    }
+
+    private byte[] read(InputStream inputStream, byte[] buffer, int length) throws IOException, TimeoutException
+    {
+        if (buffer.length < length)
+            throw new IOException("Buffer cannot smaller than the byte size that is going to be read.");
+
+        if (length <= 0)
+            throw new IOException("The length to be read cannot 0 or smaller.");
+
+        int read = 0;
+
+        while (read < length) {
+            int len = inputStream.read(buffer, read, length - read);
+
+            if (len == -1)
+                throw new IOException("Target closed connection before reading all the data.");
+            else if (len > 0)
+                read += len;
+        }
+
+        return buffer;
+    }
+
+    private void read(InputStream inputStream, OutputStream outputStream, byte[] buffer, long length)
+            throws IOException, TimeoutException
+    {
+        long read = 0;
+
+        while (read < length) {
+            int len = (int) Math.min(buffer.length, length - read);
+            read(inputStream, buffer, len);
+            read += len;
+            outputStream.write(buffer, 0, len);
+            outputStream.flush();
+        }
+    }
+
+    /**
+     * Receive from the remote. Unlike {@link ActiveConnection#receive(OutputStream)} this expects the
+     * {@link Response} to have the {@link Response#index} field to be set.
+     *
+     * @return the response received from the remote.
+     * @throws IOException      when something goes during read or similar.
+     * @throws TimeoutException when connection times out during the read process or similar.
+     */
+    public Response receive() throws IOException, TimeoutException
+    {
+        return receive(new ByteArrayOutputStream());
+    }
+
     /**
      * When the opposite side calls {@link ActiveConnection#reply(String)}, this method should
      * be invoked so that the communication occurs. The order of the calls should be in order
@@ -182,6 +216,8 @@ public class ActiveConnection implements Closeable
      * the other side should already have called this method or vice versa, which means asynchronous
      * task should not block the thread when the data is being transferred.
      *
+     * @param outputStream where the index will be written. It is made available as {@link Response#index}
+     *                     when it is a {@link ByteArrayOutputStream} instance.
      * @return The response that is received.
      * @throws IOException      When a socket IO error occurs.
      * @throws TimeoutException When the amount time exceeded while waiting for another byte to
@@ -190,65 +226,25 @@ public class ActiveConnection implements Closeable
      * @see #reply(String)
      * @see #reply(String, JSONObject)
      */
-    public synchronized Response receive() throws IOException, TimeoutException, JSONException
+    public synchronized Response receive(OutputStream outputStream) throws IOException, TimeoutException, JSONException
     {
         InputStream inputStream = getSocket().getInputStream();
         ByteArrayOutputStream header = new ByteArrayOutputStream();
-        ByteArrayOutputStream index = new ByteArrayOutputStream();
-
         final byte[] buffer = new byte[8096];
-        final int headerMaxLength = 2;
-        JSONObject headerAsJson = null;
-        int headerLength = -1;
-        int indexLength = -1;
-        int len;
-        int offset = 0;
-        int readAsMuch = headerMaxLength; // first get the 16-bit header data length
-        long lastRead = System.nanoTime();
 
-        while (indexLength == -1 || index.size() < indexLength) {
-            if ((len = inputStream.read(buffer, offset, readAsMuch)) > 0) {
-                lastRead = System.nanoTime();
+        int flags = readAsByteBuffer(inputStream, buffer, 0, Integer.BYTES).getInt();
+        short headerLength = readAsByteBuffer(inputStream, buffer, 0, Short.BYTES).getShort();
 
-                if (headerLength < 0) {
-                    if (len + offset == headerMaxLength) {
-                        headerLength = ByteBuffer.wrap(buffer, 0, headerMaxLength).getShort();
-                        if (headerLength <= 0)
-                            break;
-                    } else
-                        offset = headerMaxLength - len;
-                } else if (indexLength < 0) {
-                    header.write(buffer, 0, len);
-                    header.flush();
+        if (headerLength > 0)
+            read(inputStream, header, buffer, headerLength);
 
-                    if (header.size() == headerLength) {
-                        headerAsJson = new JSONObject(header.toString());
-                        indexLength = headerAsJson.getInt(HEADER_ITEM_LENGTH);
+        int indexLength = readAsByteBuffer(inputStream, buffer, 0, Integer.BYTES).getInt();
 
-                        if (indexLength <= 0)
-                            break;
-                    }
-                } else {
-                    index.write(buffer, 0, len);
-                    index.flush();
-                }
+        if (indexLength > 0)
+            read(inputStream, outputStream, buffer, indexLength);
 
-                if (headerLength > -1) {
-                    offset = 0;
-
-                    if (indexLength < 0) {
-                        readAsMuch = Math.min(headerLength - header.size(), buffer.length);
-                    } else {
-                        readAsMuch = Math.min(indexLength - index.size(), buffer.length);
-                    }
-                }
-            }
-
-            if (getTimeout() > NO_TIMEOUT && System.nanoTime() - lastRead > getTimeout() * 1e6)
-                throw new TimeoutException("Read timed out!");
-        }
-
-        return new Response(getSocket().getRemoteSocketAddress(), headerAsJson, index.toString(), indexLength);
+        return new Response(getSocket().getRemoteSocketAddress(), flags, headerLength, indexLength, header,
+                outputStream instanceof ByteArrayOutputStream ? (ByteArrayOutputStream) outputStream : null);
     }
 
     /**
@@ -256,77 +252,88 @@ public class ActiveConnection implements Closeable
      *
      * @see #reply(String, JSONObject)
      */
-    public void reply(String out) throws TimeoutException, IOException, JSONException
+    public void reply(String out) throws IOException, JSONException
     {
         reply(out, new JSONObject());
+    }
+
+    /**
+     * A complimentary call to {@link ActiveConnection#reply(byte[], JSONObject)} to send a string transforming
+     * it into bytes before sending.
+     *
+     * @param out    the string to send.
+     * @param header the header that will be sent to the client with the length of the data and other data depending
+     *               on your needs.
+     * @throws IOException   When a socket IO error occurs.
+     * @throws JSONException When the JSON parsing error occurs.
+     * @see #reply(byte[], JSONObject)
+     */
+    public void reply(String out, JSONObject header) throws IOException, JSONException
+    {
+        reply(out.getBytes(), header);
+    }
+
+    /**
+     * A complimentary call to {@link ActiveConnection#reply(byte[], int, int, int, JSONObject)} to send a byte array
+     * with fixed length.
+     *
+     * @param out    the data to send.
+     * @param header the header that will be sent to the client with the length of the data and other data depending
+     *               on your needs.
+     * @throws IOException   When a socket IO error occurs.
+     * @throws JSONException When the JSON parsing error occurs.
+     */
+    public void reply(byte[] out, JSONObject header) throws IOException, JSONException
+    {
+        reply(out, 0, out.length, FLAG_NONE, header);
     }
 
     /**
      * This will send the given data to the other side while the other side has already called
      * {@link ActiveConnection#receive()}.
      *
-     * @param out    The data that should be sent.
+     * @param out    the data to send.
+     * @param offset where we will begin reading the data.
+     * @param length where we will stop reading the data.
+     * @param flags  that specify the features used for this packet.
      * @param header the header that will be sent to the client with the length of the data and other data depending
-     *               on your needs
-     * @throws IOException      When a socket IO error occurs.
-     * @throws TimeoutException When the amount time exceeded while waiting for another byte to
-     *                          transfer.
-     * @throws JSONException    When the JSON parsing error occurs.
+     *               on your needs.
+     * @throws IOException   When a socket IO error occurs.
+     * @throws JSONException When the JSON parsing error occurs.
      * @see ActiveConnection#receive()
      */
-    public synchronized void reply(String out, JSONObject header) throws TimeoutException, IOException, JSONException
+    public synchronized void reply(byte[] out, int offset, int length, int flags, JSONObject header)
+            throws IOException, JSONException
     {
+        if (offset < 0 || (out.length > 0 && offset >= out.length))
+            throw new ArrayIndexOutOfBoundsException("The offset cannot be smaller than 0, or equal to or larger " +
+                    "than the actual size of the data.");
+
+        if (length < 0 || (out.length > 0 && length > out.length))
+            throw new ArrayIndexOutOfBoundsException("The length cannot be 0 or larger than the actual " +
+                    "size of the data.");
+
         OutputStream outputStream = getSocket().getOutputStream();
-        byte[] outputBytes = out == null ? new byte[0] : out.getBytes();
-        String headerString = header.put(HEADER_ITEM_LENGTH, outputBytes.length).toString();
+        int size = length - offset;
 
+        reply(outputStream, flags, header.toString().getBytes());
+
+        outputStream.write(ByteBuffer.allocate(Integer.BYTES).putInt(size).array());
+        outputStream.flush();
+
+        outputStream.write(out, offset, length);
+        outputStream.flush();
+    }
+
+    private void reply(OutputStream outputStream, int flags, byte[] header) throws IOException
+    {
         // The first 16 bit data represents length of the header
-        if (headerString.length() > CoolSocket.HEADER_MAX_LENGTH)
-            throw new IllegalStateException("The maximum length of a header can be " + (CoolSocket.HEADER_MAX_LENGTH));
+        if (header.length > Short.MAX_VALUE)
+            throw new IllegalStateException("The maximum length of a header can be " + (Short.MAX_VALUE));
 
-        outputStream.write(ByteBuffer.allocate(2).putShort((short) headerString.length()).array());
-        outputStream.flush();
-        outputStream.write(headerString.getBytes());
-        outputStream.flush();
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputBytes);
-
-        byte[] buffer = new byte[8096];
-        int len;
-
-        while ((len = inputStream.read(buffer)) != -1) {
-            long writeStart = System.nanoTime();
-
-            outputStream.write(buffer, 0, len);
-            outputStream.flush();
-
-            if (getTimeout() > NO_TIMEOUT && System.nanoTime() - writeStart > getTimeout() * 1e6)
-                throw new TimeoutException("Operation timed out!");
-        }
-    }
-
-    /**
-     * This ID for this instance of CoolSocket can be used to identify it.
-     *
-     * @param id that identifies this instance
-     */
-    public void setId(int id)
-    {
-        mId = id;
-    }
-
-    /**
-     * Sets the timeout
-     *
-     * @param timeout The timout in milliseconds.
-     * @see ActiveConnection#getTimeout()
-     */
-    public void setTimeout(int timeout) throws SocketException
-    {
-        if (timeout < 0)
-            throw new NumberFormatException("Timeout value can only be >= 0");
-
-        mTimeout = timeout;
-        getSocket().setSoTimeout(timeout);
+        // put length of the header
+        outputStream.write(ByteBuffer.allocate(Integer.BYTES).putInt(flags).array());
+        outputStream.write(ByteBuffer.allocate(Short.BYTES).putShort((short) header.length).array());
+        outputStream.write(header);
     }
 }
