@@ -1,5 +1,7 @@
-package com.genonbeta.coolsocket;
+package com.genonbeta.coolsocket.response;
 
+import com.genonbeta.coolsocket.ActiveConnection;
+import com.genonbeta.coolsocket.CoolSocket;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -22,7 +24,7 @@ public class Response
     /**
      * The feature flags set for this part.
      */
-    public final int flags;
+    public final Flags flags;
 
     /**
      * The length of the data received for this part. This will also be the total length of a chunked data.
@@ -39,14 +41,14 @@ public class Response
      * Creates a new Response instance.
      *
      * @param remote where the remote is located at.
-     * @param flags the feature flags for this response.
+     * @param flags  the feature flags for this response.
      * @param length the total length of the data.
-     * @param data the byte data stored in RAM.
+     * @param data   the byte data stored in RAM.
      */
-    Response(SocketAddress remote, int flags, long length, ByteArrayOutputStream data)
+    public Response(SocketAddress remote, long flags, long length, ByteArrayOutputStream data)
     {
         this.remote = remote;
-        this.flags = flags;
+        this.flags = new Flags(flags);
         this.length = length;
         this.data = data;
     }
@@ -61,7 +63,8 @@ public class Response
         return data != null;
     }
 
-    public JSONObject getAsJson() {
+    public JSONObject getAsJson()
+    {
         return new JSONObject(data.toString());
     }
 
@@ -99,15 +102,5 @@ public class Response
     public String getAsString()
     {
         return data.toString();
-    }
-
-    /**
-     * Whether this data was received in chunks.
-     *
-     * @return true if the data was chunked.
-     */
-    public boolean isChunked()
-    {
-        return (flags & CoolSocket.FLAG_DATA_CHUNKED) != 0;
     }
 }

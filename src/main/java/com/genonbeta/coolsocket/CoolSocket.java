@@ -15,15 +15,16 @@ import java.util.logging.Logger;
  */
 public abstract class CoolSocket
 {
+    /**
+     * Disable timeout.
+     */
     public static final int NO_TIMEOUT = 0;
 
     /**
-     * Bit order: 1
-     * <p>
-     * Tells that the read is inconclusive and another read is needed. If the data is not chunked, then, the data will
-     * be read as many as its length and will be considered as concluded.
+     * The length of the content is unknown (or unspecified). When used with chunked data transmission, the length will
+     * be unknown until the data is received in full.
      */
-    public static final int FLAG_DATA_CHUNKED = 1;
+    public static final int LENGTH_UNSPECIFIED = -1;
 
     private final Logger logger = Logger.getLogger(toString());
     private final ConfigFactory configFactory;

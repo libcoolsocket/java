@@ -1,5 +1,8 @@
 package com.genonbeta.coolsocket;
 
+import com.genonbeta.coolsocket.response.Flags;
+import com.genonbeta.coolsocket.response.Response;
+import com.genonbeta.coolsocket.response.SizeExceededException;
 import org.json.JSONException;
 
 import java.io.*;
@@ -24,12 +27,6 @@ public class ActiveConnection implements Closeable
     private InputStream privInputStream;
 
     private int internalCacheLimit = 256 * 1024;
-
-    private int flags;
-
-    private long length;
-
-    private long totalLength;
 
     /**
      * An instance with socket connection to a CoolSocket server.
@@ -119,20 +116,19 @@ public class ActiveConnection implements Closeable
         return internalCacheLimit;
     }
 
-    public InputStream getPrivInputStream() throws IOException
+    private InputStream getInputStreamPriv() throws IOException
     {
         if (privInputStream == null)
             privInputStream = getSocket().getInputStream();
         return privInputStream;
     }
 
-    public OutputStream getPrivOutputStream() throws IOException
+    private OutputStream getOutputStreamPriv() throws IOException
     {
         if (privOutputStream == null)
             privOutputStream = getSocket().getOutputStream();
         return privOutputStream;
     }
-
 
     /**
      * The socket that is used to communicate
@@ -144,46 +140,60 @@ public class ActiveConnection implements Closeable
         return socket;
     }
 
-    private byte[] read(InputStream inputStream, byte[] buffer, int length) throws IOException
+    public int read(Description description, byte[] buffer) throws IOException
     {
-        if (buffer.length < length)
-            throw new IOException("Buffer cannot smaller than the byte size that is going to be read.");
+        boolean chunked = description.flags.chunked();
 
-        if (length <= 0)
-            throw new IOException("The length to be read cannot 0 or smaller.");
+        if (chunked && description.awaitingChunkSize <= 0) {
+            description.awaitingChunkSize = readSize(buffer);
+
+            if (description.awaitingChunkSize == CoolSocket.LENGTH_UNSPECIFIED)
+                return CoolSocket.LENGTH_UNSPECIFIED;
+        }
+
+        int readAsMuch = (int) (chunked
+                ? (description.awaitingChunkSize < buffer.length ? description.awaitingChunkSize : buffer.length)
+                : (description.leftLength() < buffer.length ? description.leftLength() : buffer.length));
+        int len = getInputStreamPriv().read(buffer, 0, readAsMuch);
+        description.handedLength += len;
+
+        if (chunked)
+            description.totalLength += len;
+
+        return len;
+    }
+
+    public Description readBegin(byte[] buffer) throws IOException
+    {
+        Flags flags = new Flags(readFlags(buffer));
+        return new Description(flags, flags.chunked() ? CoolSocket.LENGTH_UNSPECIFIED : readSize(buffer));
+    }
+
+    protected long readFlags(byte[] buffer) throws IOException
+    {
+        return readAsMuch(buffer, 0, Long.BYTES).getLong();
+    }
+
+    protected long readSize(byte[] buffer) throws IOException
+    {
+        return readAsMuch(buffer, 0, Long.BYTES).getLong();
+    }
+
+    protected ByteBuffer readAsMuch(byte[] buffer, int offset, int length) throws IOException
+    {
+        if (length < 1 || length > buffer.length)
+            throw new IndexOutOfBoundsException("length cannot be a negative value, or be larger than the buffer.");
 
         int read = 0;
+        int len;
 
-        while (read < length) {
-            int len = inputStream.read(buffer, read, length - read);
-
-            if (len == -1)
-                throw new IOException("Target closed connection before reading all the data.");
-            else if (len > 0)
-                read += len;
-        }
-
-        return buffer;
-    }
-
-    private void read(InputStream inputStream, OutputStream outputStream, byte[] buffer, long length) throws IOException
-    {
-        long read = 0;
-
-        while (read < length) {
-            int len = (int) Math.min(buffer.length, length - read);
-            read(inputStream, buffer, len);
+        while ((len = getInputStreamPriv().read(buffer, read, length - read)) != -1 && read < length)
             read += len;
-            outputStream.write(buffer, 0, len);
-        }
 
-        outputStream.flush();
-    }
+        if (read < length)
+            throw new IOException("Target closed connection before reading as many data.");
 
-    private ByteBuffer readAsByteBuffer(InputStream inputStream, byte[] buffer, int offset, int length)
-            throws IOException
-    {
-        return ByteBuffer.wrap(read(inputStream, buffer, length), offset, length);
+        return ByteBuffer.wrap(buffer, offset, length);
     }
 
     public Response receive() throws IOException
@@ -193,7 +203,7 @@ public class ActiveConnection implements Closeable
 
     public Response receive(OutputStream outputStream) throws IOException
     {
-        return receive(outputStream, -1);
+        return receive(outputStream, CoolSocket.LENGTH_UNSPECIFIED);
     }
 
     /**
@@ -209,46 +219,45 @@ public class ActiveConnection implements Closeable
     public synchronized Response receive(OutputStream outputStream, int maxLength) throws IOException
     {
         final byte[] buffer = new byte[8096];
+        int len;
 
-        int flags = readAsByteBuffer(getPrivInputStream(), buffer, 0, Integer.BYTES).getInt();
-        boolean chunked = (flags & CoolSocket.FLAG_DATA_CHUNKED) != 0;
-        long totalLength = 0;
-        long length;
+        Description description = readBegin(buffer);
+        boolean chunked = description.flags.chunked();
 
         do {
-            length = readAsByteBuffer(getPrivInputStream(), buffer, 0, Long.BYTES).getLong();
-            totalLength += length;
+            len = read(description, buffer);
 
-            if (maxLength > 0 && totalLength > maxLength)
+            if (maxLength > 0 && description.handedLength > maxLength)
                 throw new SizeExceededException("The length of the data exceeds the maximum length.");
 
-            if (length > 0)
-                read(getPrivInputStream(), outputStream, buffer, length);
-        } while (chunked && length > -1);
+            if (len > 0)
+                outputStream.write(buffer, 0, len);
+        } while ((chunked && len > -1) || (!chunked && description.leftLength() > 0));
 
-        return new Response(getSocket().getRemoteSocketAddress(), flags, length,
-                outputStream instanceof ByteArrayOutputStream ? new ByteArrayOutputStream() : null);
+        return new Response(getSocket().getRemoteSocketAddress(), description.flags.all(), description.totalLength,
+                outputStream instanceof ByteArrayOutputStream ? (ByteArrayOutputStream) outputStream : null);
     }
 
     public void reply(String out) throws IOException
     {
-        writeBegin(false, 0);
-        writePart(out.getBytes());
-        writeEnd();
+        byte[] bytes = out.getBytes();
+        Description description = writeBegin(0, bytes.length);
+        writePart(description, bytes);
+        writeEnd(description);
     }
 
     public void replyWithFixedLength(InputStream inputStream, long fixedSize) throws IOException
     {
-        writeBegin(false, 0);
-        writeFrom(inputStream, fixedSize);
-        writeEnd();
+        Description description = writeBegin(0, fixedSize);
+        writeFrom(description, inputStream);
+        writeEnd(description);
     }
 
     public void replyWithChunked(InputStream inputStream) throws IOException
     {
-        writeBegin(true, 0);
-        writeFrom(inputStream);
-        writeEnd();
+        Description description = writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
+        writeFrom(description, inputStream);
+        writeEnd(description);
     }
 
     /**
@@ -265,35 +274,46 @@ public class ActiveConnection implements Closeable
     /**
      * Prepare for sending a part. This will send the flags for the upcoming part transmission so that the remote will
      * know how to treat the data it receives. After this method call, you should call
-     * {@link #writePart(byte[], int, int)} to begin writing bytes or end the part with the {@link #writeEnd()}
-     * method call.
+     * {@link #writePart(Description, byte[], int, int)} to begin writing bytes or end the part with the
+     * {@link #writeEnd(Description)} method call.
      *
-     * @param chunked this means that the length put through {@link #writePart(byte[], int, int)} is incomplete and the
-     *                full length of the data is unknown. It should keep receiving until it gets -1 value from the
-     *                length data.
-     * @param flags   the feature flags set for this part. It sets how the remote should handle the data it
+     * @param flags       the feature flags set for this part. It sets how the remote should handle the data it
+     * @param totalLength the total length of the data that will be sent. Use {@link CoolSocket#LENGTH_UNSPECIFIED} when
+     *                    the length is unknown at the moment. Doing so will make this transmission process
+     *                    {@link Flags#FLAG_DATA_CHUNKED} where the data length will only be visible as much as
+     *                    we read from the source.
      * @throws IOException when socket related IO error occurs.
      */
-    public synchronized void writeBegin(boolean chunked, int flags) throws IOException
+    public synchronized Description writeBegin(int flags, long totalLength) throws IOException
     {
-        if (chunked)
-            flags |= CoolSocket.FLAG_DATA_CHUNKED;
+        if (totalLength == CoolSocket.LENGTH_UNSPECIFIED)
+            flags |= Flags.FLAG_DATA_CHUNKED;
 
-        getPrivOutputStream().write(ByteBuffer.allocate(Integer.BYTES).putInt(flags).array());
-        this.flags = flags;
+        writeFlags(flags);
+
+        if (totalLength > CoolSocket.LENGTH_UNSPECIFIED)
+            writeSize(totalLength);
+
+        return new Description(flags, totalLength);
     }
 
-    private void writePrivSize(long size) throws IOException
+    protected void writeFlags(long flags) throws IOException
     {
-        getPrivOutputStream().write(ByteBuffer.allocate(Long.BYTES).putLong(size).array());
+        getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(flags).array());
     }
 
-    public synchronized void writePart(byte[] bytes) throws IOException
+    protected void writeSize(long size) throws IOException
     {
-        writePart(bytes, 0, bytes.length);
+        getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(size).array());
     }
 
-    public synchronized void writePart(byte[] bytes, int offset, int length) throws IOException
+    public synchronized void writePart(Description description, byte[] bytes) throws IOException
+    {
+        writePart(description, bytes, 0, bytes.length);
+    }
+
+    public synchronized void writePart(Description description, byte[] bytes, int offset, int length)
+            throws IOException
     {
         if (offset < 0 || (bytes.length > 0 && offset >= bytes.length))
             throw new ArrayIndexOutOfBoundsException("The offset cannot be smaller than 0, or equal to or larger " +
@@ -303,44 +323,73 @@ public class ActiveConnection implements Closeable
             throw new ArrayIndexOutOfBoundsException("The length cannot be 0 or larger than the actual size of the " +
                     "data.");
 
-        writePrivSize(length - offset);
-        getPrivOutputStream().write(bytes, offset, length);
+        int size = length - offset;
+        description.handedLength += size;
+
+        if (description.flags.chunked())
+            writeSize(size);
+        else if (description.handedLength > description.totalLength)
+            throw new SizeExceededException("The size of the data exceeds that length notified to the remote.");
+
+        getOutputStreamPriv().write(bytes, offset, length);
     }
 
-    public synchronized void writeFrom(InputStream inputStream) throws IOException
-    {
-        writeFrom(inputStream, -1);
-    }
-
-    public synchronized void writeFrom(InputStream inputStream, long totalLength) throws IOException
+    public synchronized void writeFrom(Description description, InputStream inputStream) throws IOException
     {
         byte[] buffer = new byte[8096];
-        long readLength = 0;
-        int length;
+        int len;
 
-        if (totalLength >= 0)
-            writePrivSize(totalLength);
+        if (description.totalLength != 0)
+            while ((description.totalLength < 0 || description.handedLength < description.totalLength)
+                    && (len = inputStream.read(buffer)) != -1) {
+                if (len > 0) {
+                    description.handedLength += len;
 
-        if (totalLength != 0)
-            while ((totalLength < 0 || readLength < totalLength) && (length = inputStream.read(buffer)) != -1) {
-                if (length > 0) {
-                    readLength += length;
+                    if (description.totalLength == CoolSocket.LENGTH_UNSPECIFIED)
+                        writeSize(len);
+                    else if (description.totalLength > 0 && description.handedLength > description.totalLength)
+                        len -= description.handedLength - description.totalLength;
 
-                    if (totalLength == -1)
-                        writePrivSize(length);
-                    else if (totalLength > 0 && readLength > totalLength)
-                        length -= readLength - totalLength;
-
-                    getPrivOutputStream().write(buffer, 0, length);
+                    getOutputStreamPriv().write(buffer, 0, len);
                 }
             }
     }
 
-    public synchronized void writeEnd() throws IOException
+    public synchronized void writeEnd(Description description) throws IOException
     {
-        if ((flags & CoolSocket.FLAG_DATA_CHUNKED) != 0)
-            writePrivSize(-1);
+        if (description.flags.chunked())
+            writeSize(-1);
 
-        getPrivOutputStream().flush();
+        getOutputStreamPriv().flush();
+    }
+
+    public static class Description
+    {
+        public final Flags flags;
+
+        public long handedLength;
+
+        public long totalLength;
+
+        public long awaitingChunkSize;
+
+        public Description(int flags, long totalLength)
+        {
+            this(new Flags(flags), totalLength);
+        }
+
+        public Description(Flags flags, long totalLength)
+        {
+            if (flags == null)
+                throw new NullPointerException("Flags cannot be null.");
+
+            this.flags = flags;
+            this.totalLength = totalLength;
+        }
+
+        public long leftLength()
+        {
+            return totalLength - handedLength;
+        }
     }
 }

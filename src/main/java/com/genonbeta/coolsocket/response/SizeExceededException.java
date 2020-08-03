@@ -1,4 +1,4 @@
-package com.genonbeta.coolsocket;
+package com.genonbeta.coolsocket.response;
 
 import java.io.IOException;
 

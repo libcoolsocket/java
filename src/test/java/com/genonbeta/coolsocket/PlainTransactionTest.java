@@ -1,5 +1,6 @@
 package com.genonbeta.coolsocket;
 
+import com.genonbeta.coolsocket.response.Response;
 import com.genonbeta.coolsocket.variant.BlockingCoolSocket;
 import com.genonbeta.coolsocket.variant.StaticMessageCoolSocket;
 import org.json.JSONObject;

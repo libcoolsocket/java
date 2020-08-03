@@ -3,7 +3,7 @@ package com.genonbeta.coolsocket.variant;
 import com.genonbeta.coolsocket.ActiveConnection;
 import com.genonbeta.coolsocket.ConfigFactory;
 import com.genonbeta.coolsocket.CoolSocket;
-import com.genonbeta.coolsocket.Response;
+import com.genonbeta.coolsocket.response.Response;
 
 import java.io.IOException;
 import java.net.SocketAddress;
