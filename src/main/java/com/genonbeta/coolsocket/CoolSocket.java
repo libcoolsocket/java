@@ -410,6 +410,4 @@ public abstract class CoolSocket
             }
         }
     }
-
-
 }

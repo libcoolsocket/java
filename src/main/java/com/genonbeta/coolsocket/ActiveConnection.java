@@ -200,7 +200,7 @@ public class ActiveConnection implements Closeable
 
     public Response receive() throws IOException
     {
-        return receive(new ByteArrayOutputStream());
+        return receive(new ByteArrayOutputStream(), getInternalCacheLimit());
     }
 
     public Response receive(OutputStream outputStream) throws IOException
@@ -286,7 +286,7 @@ public class ActiveConnection implements Closeable
      *                    we read from the source.
      * @throws IOException when socket related IO error occurs.
      */
-    public synchronized Description writeBegin(int flags, long totalLength) throws IOException
+    public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
         if (totalLength == CoolSocket.LENGTH_UNSPECIFIED)
             flags |= Flags.FLAG_DATA_CHUNKED;
@@ -337,25 +337,22 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().write(bytes, offset, length);
     }
 
+    public void writeAll(long flags, InputStream inputStream, long totalLength) throws IOException
+    {
+        ActiveConnection.Description description = writeBegin(flags, totalLength);
+        writeAll(description, inputStream);
+        writeEnd(description);
+    }
+
     public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
     {
         byte[] buffer = new byte[8096];
         int len;
 
-        if (description.totalLength != 0)
-            while ((description.totalLength < 0 || description.handedLength < description.totalLength)
-                    && (len = inputStream.read(buffer)) != -1) {
-                if (len > 0) {
-                    description.handedLength += len;
-
-                    if (description.totalLength == CoolSocket.LENGTH_UNSPECIFIED)
-                        writeSize(len);
-                    else if (description.totalLength > 0 && description.handedLength > description.totalLength)
-                        len -= description.handedLength - description.totalLength;
-
-                    write(description, buffer, 0, len);
-                }
-            }
+        while ((len = inputStream.read(buffer)) != -1
+                && (description.flags.chunked() || description.leftLength() <= 0)) {
+            write(description, buffer, 0, len);
+        }
     }
 
     public synchronized void writeEnd(Description description) throws IOException
@@ -376,7 +373,7 @@ public class ActiveConnection implements Closeable
 
         public long awaitingChunkSize;
 
-        public Description(int flags, long totalLength)
+        public Description(long flags, long totalLength)
         {
             this(new Flags(flags), totalLength);
         }
