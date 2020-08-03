@@ -157,8 +157,10 @@ public class ActiveConnection implements Closeable
         int len = getInputStreamPriv().read(buffer, 0, readAsMuch);
         description.handedLength += len;
 
-        if (chunked)
+        if (chunked) {
+            description.awaitingChunkSize -= len;
             description.totalLength += len;
+        }
 
         return len;
     }
@@ -242,21 +244,21 @@ public class ActiveConnection implements Closeable
     {
         byte[] bytes = out.getBytes();
         Description description = writeBegin(0, bytes.length);
-        writePart(description, bytes);
+        write(description, bytes);
         writeEnd(description);
     }
 
     public void replyWithFixedLength(InputStream inputStream, long fixedSize) throws IOException
     {
         Description description = writeBegin(0, fixedSize);
-        writeFrom(description, inputStream);
+        writeAll(description, inputStream);
         writeEnd(description);
     }
 
     public void replyWithChunked(InputStream inputStream) throws IOException
     {
         Description description = writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
-        writeFrom(description, inputStream);
+        writeAll(description, inputStream);
         writeEnd(description);
     }
 
@@ -274,7 +276,7 @@ public class ActiveConnection implements Closeable
     /**
      * Prepare for sending a part. This will send the flags for the upcoming part transmission so that the remote will
      * know how to treat the data it receives. After this method call, you should call
-     * {@link #writePart(Description, byte[], int, int)} to begin writing bytes or end the part with the
+     * {@link #write(Description, byte[], int, int)} to begin writing bytes or end the part with the
      * {@link #writeEnd(Description)} method call.
      *
      * @param flags       the feature flags set for this part. It sets how the remote should handle the data it
@@ -307,12 +309,12 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(size).array());
     }
 
-    public synchronized void writePart(Description description, byte[] bytes) throws IOException
+    public synchronized void write(Description description, byte[] bytes) throws IOException
     {
-        writePart(description, bytes, 0, bytes.length);
+        write(description, bytes, 0, bytes.length);
     }
 
-    public synchronized void writePart(Description description, byte[] bytes, int offset, int length)
+    public synchronized void write(Description description, byte[] bytes, int offset, int length)
             throws IOException
     {
         if (offset < 0 || (bytes.length > 0 && offset >= bytes.length))
@@ -326,15 +328,16 @@ public class ActiveConnection implements Closeable
         int size = length - offset;
         description.handedLength += size;
 
-        if (description.flags.chunked())
+        if (description.flags.chunked()) {
             writeSize(size);
-        else if (description.handedLength > description.totalLength)
+            description.totalLength += size;
+        } else if (description.handedLength > description.totalLength)
             throw new SizeExceededException("The size of the data exceeds that length notified to the remote.");
 
         getOutputStreamPriv().write(bytes, offset, length);
     }
 
-    public synchronized void writeFrom(Description description, InputStream inputStream) throws IOException
+    public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
     {
         byte[] buffer = new byte[8096];
         int len;
@@ -350,7 +353,7 @@ public class ActiveConnection implements Closeable
                     else if (description.totalLength > 0 && description.handedLength > description.totalLength)
                         len -= description.handedLength - description.totalLength;
 
-                    getOutputStreamPriv().write(buffer, 0, len);
+                    write(description, buffer, 0, len);
                 }
             }
     }
@@ -384,7 +387,7 @@ public class ActiveConnection implements Closeable
                 throw new NullPointerException("Flags cannot be null.");
 
             this.flags = flags;
-            this.totalLength = totalLength;
+            this.totalLength = totalLength == CoolSocket.LENGTH_UNSPECIFIED ? 0 : totalLength;
         }
 
         public long leftLength()
