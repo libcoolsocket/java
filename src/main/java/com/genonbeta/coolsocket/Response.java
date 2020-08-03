@@ -20,104 +20,85 @@ public class Response
     public final SocketAddress remote;
 
     /**
-     * The properties of this connection defined in bit order.
-     *
-     * @see CoolSocket#FLAG_DATA_CHUNKED
+     * The feature flags set for this part.
      */
     public final int flags;
 
     /**
-     * The length of the header.
+     * The length of the data received for this part. This will also be the total length of a chunked data.
      */
-    public final short headerLength;
+    public final long length;
 
     /**
-     * Header for the response.
-     *
-     * @see #headerLength
+     * If the received data is small in size, and is written to a byte buffer (e.g., {@link ByteArrayOutputStream}),
+     * it will be included in this field.
      */
-    public final ByteArrayOutputStream header;
-
-    /**
-     * The length of the index.
-     */
-    public final int indexLength;
-
-    /**
-     * The response.
-     *
-     * @see #indexLength
-     */
-    public final ByteArrayOutputStream index;
+    public final ByteArrayOutputStream data;
 
     /**
      * Creates a new Response instance.
      *
-     * @param remote       where the remote is located at.
-     * @param headerLength the total length of the header.
-     * @param indexLength  the total length of the index.
-     * @param flags        the feature flags specifying which features were used for this response.
-     * @param header       the header data.
-     * @param index        the index data.
+     * @param remote where the remote is located at.
+     * @param flags the feature flags for this response.
+     * @param length the total length of the data.
+     * @param data the byte data stored in RAM.
      */
-    Response(SocketAddress remote, int flags, short headerLength, int indexLength, ByteArrayOutputStream header,
-             ByteArrayOutputStream index)
+    Response(SocketAddress remote, int flags, long length, ByteArrayOutputStream data)
     {
         this.remote = remote;
         this.flags = flags;
-        this.headerLength = headerLength;
-        this.indexLength = indexLength;
-        this.header = header;
-        this.index = index;
+        this.length = length;
+        this.data = data;
     }
 
     /**
-     * Get the header part as a JSON object.
+     * Check whether the data contains actual data.
      *
-     * @param charset to use to decode the header data.
+     * @return true if the data is actually an object.
+     */
+    public boolean containsData()
+    {
+        return data != null;
+    }
+
+    public JSONObject getAsJson() {
+        return new JSONObject(data.toString());
+    }
+
+    /**
+     * Get the data as a JSON object.
+     *
+     * @param charsetName the name of the charset to use to decode the data.
      * @return the encapsulated JSON data.
-     * @throws UnsupportedEncodingException when the given charset to use as encoding is not known to the system.
+     * @throws UnsupportedEncodingException if the supplied charset name is not available.
      */
-    public JSONObject getHeaderAsJson(String charset) throws UnsupportedEncodingException
+    public JSONObject getAsJson(String charsetName) throws UnsupportedEncodingException
     {
-        return new JSONObject(header.toString(charset));
+        return new JSONObject(data.toString(charsetName));
     }
 
     /**
-     * Return the index part of the data as a string if it exists. Will return a null pointer exception if its null.
+     * Return the data as a string.
      *
-     * @return the string representation of the {@link #index} decoded with the default charset
-     * @see #getIndexAsString(String)
-     * @see #hasBody()
+     * @param charsetName the name of the charset to use to decode the data.
+     * @return the string representation of the {@link #data}.
+     * @throws UnsupportedEncodingException if the supplied charset name is not available.
+     * @see #getAsString()
      */
-    public String getIndexAsString()
+    public String getAsString(String charsetName) throws UnsupportedEncodingException
     {
-        return index.toString();
+        return data.toString(charsetName);
     }
 
     /**
-     * Return the index part of the data as a string decoded using a user-preferred charset.
+     * Get the data as a string.
      *
-     * @param charsetName the index is encoded with
-     * @return the string representation of the {@link #index}
-     * @throws UnsupportedEncodingException as per defined by {@link ByteArrayOutputStream#toString(String)}
-     * @see #getIndexAsString()
-     * @see #hasBody()
+     * @return the string representation of the {@link #data}.
+     * @see #getAsString(String)
      */
-    public String getIndexAsString(String charsetName) throws UnsupportedEncodingException
+    public String getAsString()
     {
-        return index.toString(charsetName);
-    }
-
-    /**
-     * Check whether this response instance has a body.
-     *
-     * @return true if it has a body, or false if otherwise.
-     * @see #getIndexAsString()
-     */
-    public boolean hasBody()
-    {
-        return index != null;
+        return data.toString();
     }
 
     /**
@@ -125,21 +106,8 @@ public class Response
      *
      * @return true if the data was chunked.
      */
-    public boolean isDataChunked()
+    public boolean isChunked()
     {
         return (flags & CoolSocket.FLAG_DATA_CHUNKED) != 0;
-    }
-
-    /**
-     * Same as {@link Response#getIndexAsString()}.
-     *
-     * @return the index as string.
-     * @see #getIndexAsString()
-     * @see #hasBody()
-     */
-    @Override
-    public String toString()
-    {
-        return getIndexAsString();
     }
 }

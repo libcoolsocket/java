@@ -1,16 +1,13 @@
 package com.genonbeta.coolsocket;
 
-import com.genonbeta.coolsocket.server.ConnectionManager;
-import com.genonbeta.coolsocket.server.DefaultServerExecutorFactory;
-import com.genonbeta.coolsocket.server.ServerExecutor;
-import com.genonbeta.coolsocket.server.ServerExecutorFactory;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import com.genonbeta.coolsocket.server.*;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -20,9 +17,13 @@ public abstract class CoolSocket
 {
     public static final int NO_TIMEOUT = 0;
 
-    public static final int
-            FLAG_NONE = 0,
-            FLAG_DATA_CHUNKED = 1 << 1; // Chunked if not single
+    /**
+     * Bit order: 1
+     * <p>
+     * Tells that the read is inconclusive and another read is needed. If the data is not chunked, then, the data will
+     * be read as many as its length and will be considered as concluded.
+     */
+    public static final int FLAG_DATA_CHUNKED = 1;
 
     private final Logger logger = Logger.getLogger(toString());
     private final ConfigFactory configFactory;
@@ -78,19 +79,32 @@ public abstract class CoolSocket
     }
 
     /**
-     * This should not be called before the {@link CoolSocket#start()} is called.
-     * If the server was started with random port, this returns the port
-     * assigned to the server.
+     * Get the connection manager that handles the threads for clients.
      *
-     * @return The port that the server is running on.
+     * @return the connection manager instance.
      */
-    public int getLocalPort()
+    protected ConnectionManager getConnectionManager()
     {
-        return inSession() ? getSession().;
+        if (connectionManager == null)
+            connectionManager = new DefaultConnectionManager();
+        return connectionManager;
     }
 
     /**
-     * The session that is still accepting requests and hasn't been interrupted or still waiting to exit. This may
+     * This will return the port server will be or is running on. If the port number is zero (to assign a random port),
+     * this will return '0' as expected, however, if the server has been started, then, the returned value will be the
+     * port that the server is running on.
+     *
+     * @return the port that the server is running on.
+     */
+    public int getLocalPort()
+    {
+        Session session = getSession();
+        return session == null ? getConfigFactory().getPort() : session.getServerSocket().getLocalPort();
+    }
+
+    /**
+     * The session that is still accepting requests and hasn't been interrupted or still waiting to exit. This will
      * return null if there is no active session.
      *
      * @return the session that runs the server process.
@@ -121,9 +135,15 @@ public abstract class CoolSocket
         return serverSession != null;
     }
 
+    /**
+     * Check whether the server is listening for connections.
+     *
+     * @return true if the server is listening, or false if otherwise.
+     */
     public boolean isListening()
     {
-        throw new NotImplementedException();
+        Session session = getSession();
+        return session != null && session.isListening();
     }
 
     /**
@@ -137,41 +157,33 @@ public abstract class CoolSocket
     }
 
     /**
-     * When a client is connected, to not block the server thread, we call this method to communicate
-     * with it. The socket is different from a normal socket connection where the data should also
-     * contain a header.
+     * Handle the request from a client on a different thread.
      *
-     * @param socket The socket that is connected to the client.
+     * @param socket the socket representing the client.
      */
     public void respondRequest(final Socket socket)
     {
-        connectionManager.handleClient(this, new ActiveConnection(socket));
+        getConnectionManager().handleClient(this, new ActiveConnection(socket));
     }
 
     /**
-     * Restarts the server ensuring it is ready for next connections.
+     * Restart the server without changing anything
      *
-     * @param timeout The time in milliseconds
-     * @return False if the server is running and did not stop or failed to start. True
-     * if the server will be started{@link CoolSocket#start()}
-     * @see CoolSocket#start()
-     * @see CoolSocket#start(int)
+     * @param timeout time to wait before giving up.
+     * @throws IOException          when something related socket set up goes wrong (e.g., a bind exception).
+     * @throws InterruptedException if the calling thread exits while waiting for the lock to release.
+     * @see #start()
+     * @see #start(long)
+     * @see #stop()
+     * @see #stop(long)
      */
-    public boolean restart(int timeout)
+    public void restart(int timeout) throws IOException, InterruptedException
     {
         if (timeout <= 0)
             throw new IllegalStateException("Can't supply timeout as zero");
 
-        if (isServerAlive())
-            if (!stop())
-                return false;
-
-        double timeoutAt = System.nanoTime() + timeout * 1e6;
-        while (System.nanoTime() < timeoutAt)
-            if (!isListening() && !isServerAlive())
-                return start(timeout);
-
-        return false;
+        stop(timeout);
+        start(timeout);
     }
 
     /**
@@ -179,6 +191,8 @@ public abstract class CoolSocket
      *
      * @return the session which represents the listening session.
      * @throws IOException if an unrecoverable error occurs.
+     * @see #start()
+     * @see #start(long)
      */
     public Session startAsynchronously() throws IOException
     {
@@ -189,95 +203,111 @@ public abstract class CoolSocket
         ServerExecutor serverExecutor = getServerExecutorFactory().createServerExecutor();
 
         Session session = new Session(serverSocket, serverExecutor);
-        session.startSession();
+        session.start();
 
         return session;
     }
 
-    public void start() throws IOException
-    {
-
-    }
-
-
     /**
-     * Stops the CoolSocket server.
+     * Start the server session and ensure it has started when returned, meaning it will block the calling thread until
+     * the server starts. For a nonblocking start, use {@link #startAsynchronously()}.
      *
-     * @return True if the server was running and has been stopped.
+     * @throws IOException          if an error occurs during the set-up process of the server socket.
+     * @throws InterruptedException if the calling thread goes into the interrupted state.
+     * @see #start(long)
+     * @see #startAsynchronously()
      */
-    public boolean stop()
+    public void start() throws IOException, InterruptedException
     {
-
-
-        return true;
+        start(0);
     }
 
     /**
-     * This class helps the connection process to a CoolSocket server.
+     * Start the server session and ensure it has started in the given timespan or throw an {@link IOException} saying
+     * that the server could not start listening.
+     *
+     * @param timeout time in milliseconds to wait before giving up with an error.
+     * @throws IOException          if something related to the set-up process of the server socket goes wrong or the
+     *                              server socket cannot start listening in the given time.
+     * @throws InterruptedException if the calling thread goes in to the interrupted state.
      */
-    public static class Client
+    public void start(long timeout) throws IOException, InterruptedException
     {
-        private Object mReturn;
+        Session session = startAsynchronously();
+        session.waitUntilStateChange(timeout);
+        if (!session.isListening())
+            throw new IOException("The server could not start listening.");
+    }
 
-        /**
-         * This emulates the connection to a server.
-         *
-         * @param connection    The connection object.
-         * @param socketAddress The address that should be connected.
-         * @throws IOException When the connection fails.
-         */
-        public void connect(ActiveConnection connection, SocketAddress socketAddress) throws IOException
-        {
-            connection.connect(socketAddress);
-        }
+    /**
+     * Stops the CoolSocket server session without blocking the calling thread. This shouldn't be called if there is no
+     * session, and it will throw {@link IllegalStateException} if you do so. Ensure you are invoking this when
+     * {@link #isListening()} returns true.
+     *
+     * @return the session object representing the active listening session.
+     * @see #stop()
+     * @see #stop(long)
+     */
+    public Session stopAsynchronously()
+    {
+        if (!isListening())
+            throw new IllegalStateException("The server is not running or hasn't started yet. Make sure this call" +
+                    " happens during a valid session's lifecycle.");
 
-        /**
-         * You can return object when the process exits. This is mostly useful when the same thread
-         * is used for the connection.
-         *
-         * @return The object given during the connection. Null if nothing was given.
-         * @see Client#setReturn(Object)
-         */
-        public Object getReturn()
-        {
-            return mReturn;
-        }
+        Session session = getSession();
+        session.interrupt();
+        return session;
+    }
 
-        /**
-         * This sets the object that should be returned during the connection process.
-         *
-         * @param returnedObject The object to return.
-         * @see Client#getReturn()
-         */
-        public void setReturn(Object returnedObject)
-        {
-            mReturn = returnedObject;
-        }
+    /**
+     * Stop the active listening session and close all the connections to the clients without a prior notice. This will
+     * block the calling thread indefinitely until the lock releases. Use {@link #stopAsynchronously()} to for an
+     * asynchronous stop call.
+     * <p>
+     * This shouldn't be called when there is no session and will throw an {@link IllegalStateException} error if you
+     * do so.
+     *
+     * @throws InterruptedException if the calling thread goes into interrupted state.
+     * @see #stop(long)
+     * @see #stopAsynchronously()
+     */
+    public void stop() throws InterruptedException
+    {
+        Session session = stopAsynchronously();
+        session.waitUntilStateChange();
+    }
+
+    /**
+     * Stop the active listening session and close all the connections to the clients without a prior notice. This will
+     * block the calling thread for the given timeout amount (indefinitely if '0') until the lock releases. Use
+     * {@link #stopAsynchronously()} for an asynchronous stop operation. This will throw an {@link IOException} if the
+     * server fails to stop in time.
+     *
+     * @param timeout time to wait in millisecond
+     * @throws InterruptedException if the calling thread goes into interrupted state.
+     * @see #stop()
+     * @see #stopAsynchronously()
+     */
+    public void stop(long timeout) throws InterruptedException, IOException
+    {
+        Session session = stopAsynchronously();
+        session.waitUntilStateChange(timeout);
+        if (session.isListening())
+            throw new IOException("The server could not stop listening.");
     }
 
     /**
      * The class that holds the server related data for an active session.
      */
-    private class Session implements Runnable
+    private class Session extends Thread
     {
-        /**
-         * The thread that will run this session.
-         */
-        public Thread serverThread;
-
         public ServerSocket serverSocket;
 
         public ServerExecutor serverExecutor;
 
-        /**
-         * A session can only run once. This field ensures that.
-         */
-        private boolean started = false;
+        private final Object stateLock = new Object();
 
-        /**
-         * Whether this session has started listening or exited.
-         */
-        private boolean listening = false;
+        private boolean listening;
 
         /**
          * Create a session with the given object which should only be known to this class. Any object here is useless
@@ -289,8 +319,23 @@ public abstract class CoolSocket
          */
         public Session(ServerSocket serverSocket, ServerExecutor serverExecutor)
         {
+            super("CoolSocket Server Session");
+
             this.serverSocket = serverSocket;
             this.serverExecutor = serverExecutor;
+        }
+
+        private void closeServerSocket()
+        {
+            if (serverSocket.isClosed())
+                return;
+
+            try {
+                serverSocket.close();
+            } catch (IOException e) {
+                if (!isInterrupted())
+                    CoolSocket.this.getLogger().info("The server socket was already closed ");
+            }
         }
 
         public ServerExecutor getServerExecutor()
@@ -303,14 +348,11 @@ public abstract class CoolSocket
             return serverSocket;
         }
 
-        public Thread getServerThread()
+        @Override
+        public void interrupt()
         {
-            return serverThread;
-        }
-
-        public boolean isStarted()
-        {
-            return started;
+            super.interrupt();
+            closeServerSocket();
         }
 
         public boolean isListening()
@@ -318,34 +360,55 @@ public abstract class CoolSocket
             return listening;
         }
 
-        private void startSession()
-        {
-            if (started)
-                throw new IllegalStateException("This session has already been run.");
-
-            started = true;
-            serverThread = new Thread(this);
-
-            serverThread.start();
-        }
-
         @Override
         public void run()
         {
-            if (!started)
-                throw new IllegalStateException("Session.started cannot be false. Please ensure Session runnable " +
-                        " starts itself with startSession() method so that it can ensure a safe usage.");
+            if (Thread.currentThread() != this)
+                throw new IllegalStateException("A session is its own thread and should not be run as a runnable.");
 
             listening = true;
+            synchronized (stateLock) {
+                stateLock.notifyAll();
+            }
 
             try {
                 serverExecutor.onSession(CoolSocket.this, getConfigFactory(), serverSocket);
             } catch (Exception e) {
-                e.printStackTrace();
+                if (!isInterrupted())
+                    CoolSocket.this.getLogger().log(Level.SEVERE, "Server exited with an unexpected error.", e);
             } finally {
+                closeServerSocket();
+
                 CoolSocket.this.serverSession = null;
                 listening = false;
+                synchronized (stateLock) {
+                    stateLock.notifyAll();
+                }
+            }
+        }
+
+        @Override
+        public synchronized void start()
+        {
+            super.start();
+            CoolSocket.this.serverSession = this;
+        }
+
+        public void waitUntilStateChange() throws InterruptedException
+        {
+            waitUntilStateChange(0);
+        }
+
+        public void waitUntilStateChange(long ms) throws InterruptedException
+        {
+            synchronized (stateLock) {
+                if (ms == 0)
+                    stateLock.wait();
+                else
+                    stateLock.wait(ms);
             }
         }
     }
+
+
 }

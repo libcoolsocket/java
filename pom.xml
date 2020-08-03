@@ -59,10 +59,28 @@
             <version>RELEASE</version>
             <scope>test</scope>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-jar-plugin -->
+        <dependency>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -111,24 +129,6 @@
                     <releaseProfiles>release</releaseProfiles>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>com.devexperts.bintray</groupId>
-                <artifactId>bintray-maven-plugin</artifactId>
-                <version>1.3</version>
-                <configuration>
-                    <id>bintray-coolsocket-deploy</id>
-                    <url>https://api.bintray.com/maven/genonbeta/coolsocket/main</url>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>bintray-deploy</id>
-                        <goals>
-                            <goal>deploy</goal>
-                            <goal>publish</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 
@@ -144,13 +144,6 @@
     </profiles>
 
     <pluginRepositories>
-        <pluginRepository>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-            <id>bintray-devexperts-Maven</id>
-            <name>bintray-plugins</name>
-            <url>http://dl.bintray.com/devexperts/Maven</url>
-        </pluginRepository>
+
     </pluginRepositories>
 </project>
