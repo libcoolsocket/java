@@ -234,7 +234,7 @@ public class ActiveConnection implements Closeable
 
             if (len > 0)
                 outputStream.write(buffer, 0, len);
-        } while ((chunked && len > -1) || (!chunked && description.leftLength() > 0));
+        } while (!description.done());
 
         return new Response(getSocket().getRemoteSocketAddress(), description.flags.all(), description.totalLength,
                 outputStream instanceof ByteArrayOutputStream ? (ByteArrayOutputStream) outputStream : null);
@@ -248,14 +248,14 @@ public class ActiveConnection implements Closeable
         writeEnd(description);
     }
 
-    public void replyWithFixedLength(InputStream inputStream, long fixedSize) throws IOException
+    public void replyWithFixedLength(long flags, InputStream inputStream, long fixedSize) throws IOException
     {
-        Description description = writeBegin(0, fixedSize);
+        Description description = writeBegin(flags, fixedSize);
         writeAll(description, inputStream);
         writeEnd(description);
     }
 
-    public void replyWithChunked(InputStream inputStream) throws IOException
+    public void replyWithChunked(long flags, InputStream inputStream) throws IOException
     {
         Description description = writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
         writeAll(description, inputStream);
@@ -337,20 +337,12 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().write(bytes, offset, length);
     }
 
-    public void writeAll(long flags, InputStream inputStream, long totalLength) throws IOException
-    {
-        ActiveConnection.Description description = writeBegin(flags, totalLength);
-        writeAll(description, inputStream);
-        writeEnd(description);
-    }
-
     public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
     {
         byte[] buffer = new byte[8096];
         int len;
 
-        while ((len = inputStream.read(buffer)) != -1
-                && (description.flags.chunked() || description.leftLength() <= 0)) {
+        while ((len = inputStream.read(buffer)) != -1 && !description.done()) {
             write(description, buffer, 0, len);
         }
     }
@@ -385,6 +377,12 @@ public class ActiveConnection implements Closeable
 
             this.flags = flags;
             this.totalLength = totalLength == CoolSocket.LENGTH_UNSPECIFIED ? 0 : totalLength;
+        }
+
+        public boolean done()
+        {
+            return (flags.chunked() && awaitingChunkSize == CoolSocket.LENGTH_UNSPECIFIED)
+                    || (!flags.chunked() && leftLength() == 0);
         }
 
         public long leftLength()

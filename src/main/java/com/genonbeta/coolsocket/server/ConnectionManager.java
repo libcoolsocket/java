@@ -9,7 +9,7 @@ import java.util.List;
 public interface ConnectionManager
 {
     /**
-     * Close all of the active connections.
+     * Force close all the active connections.
      */
     void closeAll();
 

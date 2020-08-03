@@ -96,4 +96,40 @@ public class PlainTransactionTest
             Assert.assertEquals("The keys in both JSON objects should be visible with the same value.",
                     headerJson.get(key), remoteHeader.get(key));
     }
+
+    @Test
+    public void directionlessDeliveryTest() throws IOException, InterruptedException
+    {
+        final String message = "Back to the days of Yore when we were sure of a good long summer.";
+        final int loops = 20;
+
+        CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                for (int i = 0; i < loops; i++) {
+                    try {
+                        activeConnection.receive();
+                        activeConnection.reply(message);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+
+        for (int i = 0; i < loops; i++) {
+            activeConnection.reply(message);
+            Assert.assertEquals("The message should match with the original.", message,
+                    activeConnection.receive().getAsString());
+        }
+
+        activeConnection.close();
+        coolSocket.stop();
+    }
 }

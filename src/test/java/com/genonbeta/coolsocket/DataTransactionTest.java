@@ -136,7 +136,7 @@ public class DataTransactionTest
             public void onConnected(ActiveConnection activeConnection)
             {
                 try {
-                    activeConnection.writeAll(0, inputStream, CoolSocket.LENGTH_UNSPECIFIED);
+                    activeConnection.replyWithChunked(0, inputStream);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
