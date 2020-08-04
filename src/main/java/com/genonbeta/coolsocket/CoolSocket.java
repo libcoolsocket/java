@@ -1,12 +1,11 @@
 package com.genonbeta.coolsocket;
 
+import com.genonbeta.coolsocket.config.ConfigFactory;
+import com.genonbeta.coolsocket.config.DefaultConfigFactory;
 import com.genonbeta.coolsocket.server.*;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketAddress;
+import java.net.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -162,8 +161,9 @@ public abstract class CoolSocket
      *
      * @param socket the socket representing the client.
      */
-    public void respondRequest(final Socket socket)
+    public void respondRequest(final Socket socket) throws SocketException
     {
+        getConfigFactory().configureClient(socket);
         getConnectionManager().handleClient(this, new ActiveConnection(socket));
     }
 

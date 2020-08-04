@@ -1,9 +1,10 @@
-package com.genonbeta.coolsocket;
+package com.genonbeta.coolsocket.config;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.SocketException;
 
 public class DefaultConfigFactory implements ConfigFactory
 {
@@ -26,7 +27,7 @@ public class DefaultConfigFactory implements ConfigFactory
     }
 
     @Override
-    public void configureClient(Socket socket) throws Exception
+    public void configureClient(Socket socket) throws SocketException
     {
         socket.setSoTimeout(readTimeout);
     }

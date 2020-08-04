@@ -1,11 +1,8 @@
-package com.genonbeta.coolsocket;
+package com.genonbeta.coolsocket.config;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketAddress;
+import java.net.*;
 
 public interface ConfigFactory
 {
@@ -14,7 +11,7 @@ public interface ConfigFactory
      * misconfiguration.
      *
      * @param serverSocket to be configured.
-     * @throws Exception when an unrecoverable error occurs due to misconfiguration.
+     * @throws IOException when an unrecoverable error occurs due to misconfiguration.
      */
     void configureServer(ServerSocket serverSocket) throws IOException;
 
@@ -27,13 +24,13 @@ public interface ConfigFactory
     ServerSocket createServer() throws IOException;
 
     /**
-     * Configure the socket for a client before its actual usage. The configuration may be different from that of
-     * {@link ServerSocket#accept()} assigns.
+     * Configure the socket connection to a client before its actual usage. The configuration may be different from
+     * that of {@link ServerSocket#accept()} assigns.
      *
      * @param client to configure.
-     * @throws Exception when an unrecoverable error occurs due to misconfiguration.
+     * @throws SocketException when an unrecoverable error occurs due to misconfiguration.
      */
-    void configureClient(Socket client) throws Exception;
+    void configureClient(Socket client) throws SocketException;
 
     /**
      * The address that the upcoming products will be assigned to. This does not necessarily reflect the

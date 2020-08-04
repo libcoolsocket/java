@@ -1,12 +1,11 @@
 package com.genonbeta.coolsocket.server;
 
-import com.genonbeta.coolsocket.ConfigFactory;
+import com.genonbeta.coolsocket.config.ConfigFactory;
 import com.genonbeta.coolsocket.CoolSocket;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.SocketException;
-import java.util.logging.Level;
 
 public class DefaultServerExecutor implements ServerExecutor
 {

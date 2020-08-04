@@ -1,6 +1,6 @@
 package com.genonbeta.coolsocket.server;
 
-import com.genonbeta.coolsocket.ConfigFactory;
+import com.genonbeta.coolsocket.config.ConfigFactory;
 import com.genonbeta.coolsocket.CoolSocket;
 
 import java.net.ServerSocket;

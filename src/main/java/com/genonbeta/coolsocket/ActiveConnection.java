@@ -1,5 +1,7 @@
 package com.genonbeta.coolsocket;
 
+import com.genonbeta.coolsocket.config.Config;
+import com.genonbeta.coolsocket.response.ExchangeType;
 import com.genonbeta.coolsocket.response.Flags;
 import com.genonbeta.coolsocket.response.Response;
 import com.genonbeta.coolsocket.response.SizeExceededException;
@@ -27,6 +29,8 @@ public class ActiveConnection implements Closeable
     private InputStream privInputStream;
 
     private int internalCacheLimit = 256 * 1024;
+
+    private int protocolVersion;
 
     /**
      * An instance with socket connection to a CoolSocket server.
@@ -100,6 +104,57 @@ public class ActiveConnection implements Closeable
         }
     }
 
+    protected void exchangeInfo(ExchangeType exchangeType) throws IOException
+    {
+        writeFlags(Flags.FLAG_INFO_EXCHANGE);
+        exchangeSend(exchangeType);
+        exchangeReceive();
+    }
+
+    private ExchangeType exchangeReceive() throws IOException
+    {
+        byte[] buffer = new byte[8];
+        int featureId = readInteger(buffer);
+        ExchangeType exchangeType = ExchangeType.values()[featureId];
+        int maxLength = exchangeType.getMaxLength();
+        int firstInteger = readInteger(buffer);
+        if (firstInteger > maxLength)
+            throw new SizeExceededException("The remote reported size for " + exchangeType + " info cannot be bigger than " +
+                    maxLength + ". The remote reported it as " + firstInteger);
+
+        switch (exchangeType) {
+            case Dummy:
+                readAsMuch(new byte[firstInteger], 0, firstInteger);
+                break;
+            case ProtocolVersion:
+                protocolVersion = firstInteger;
+        }
+
+        return exchangeType;
+    }
+
+    private void exchangeSend(ExchangeType exchangeType) throws IOException
+    {
+        writeInteger(exchangeType.ordinal());
+
+        int firstInteger;
+        byte[] bytes;
+        switch (exchangeType) {
+            case ProtocolVersion:
+                firstInteger = Config.PROTOCOL_VERSION;
+                bytes = null;
+                break;
+            case Dummy:
+            default:
+                bytes = "Dummy, dum dum!".getBytes();
+                firstInteger = bytes.length;
+        }
+
+        writeInteger(firstInteger);
+        if (bytes != null)
+            getOutputStreamPriv().write(bytes);
+    }
+
     /**
      * @return the address that the socket is bound to.
      */
@@ -168,17 +223,34 @@ public class ActiveConnection implements Closeable
     public Description readBegin(byte[] buffer) throws IOException
     {
         Flags flags = new Flags(readFlags(buffer));
+
+        if (flags.exchange()) {
+            ExchangeType exchangeType = exchangeReceive();
+            exchangeSend(exchangeType);
+            return readBegin(buffer);
+        }
+
         return new Description(flags, flags.chunked() ? CoolSocket.LENGTH_UNSPECIFIED : readSize(buffer));
     }
 
     protected long readFlags(byte[] buffer) throws IOException
+    {
+        return readLong(buffer);
+    }
+
+    protected int readInteger(byte[] buffer) throws IOException
+    {
+        return readAsMuch(buffer, 0, Integer.BYTES).getInt();
+    }
+
+    protected long readLong(byte[] buffer) throws IOException
     {
         return readAsMuch(buffer, 0, Long.BYTES).getLong();
     }
 
     protected long readSize(byte[] buffer) throws IOException
     {
-        return readAsMuch(buffer, 0, Long.BYTES).getLong();
+        return readLong(buffer);
     }
 
     protected ByteBuffer readAsMuch(byte[] buffer, int offset, int length) throws IOException
@@ -257,7 +329,7 @@ public class ActiveConnection implements Closeable
 
     public void replyWithChunked(long flags, InputStream inputStream) throws IOException
     {
-        Description description = writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
+        Description description = writeBegin(flags, CoolSocket.LENGTH_UNSPECIFIED);
         writeAll(description, inputStream);
         writeEnd(description);
     }
@@ -288,6 +360,9 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
+        if (protocolVersion == 0)
+            exchangeInfo(ExchangeType.ProtocolVersion);
+
         if (totalLength == CoolSocket.LENGTH_UNSPECIFIED)
             flags |= Flags.FLAG_DATA_CHUNKED;
 
@@ -301,12 +376,22 @@ public class ActiveConnection implements Closeable
 
     protected void writeFlags(long flags) throws IOException
     {
-        getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(flags).array());
+        writeSize(flags);
+    }
+
+    protected void writeInteger(int value) throws IOException
+    {
+        getOutputStreamPriv().write(ByteBuffer.allocate(Integer.BYTES).putInt(value).array());
+    }
+
+    protected void writeLong(long value) throws IOException
+    {
+        getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(value).array());
     }
 
     protected void writeSize(long size) throws IOException
     {
-        getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(size).array());
+        writeLong(size);
     }
 
     public synchronized void write(Description description, byte[] bytes) throws IOException
