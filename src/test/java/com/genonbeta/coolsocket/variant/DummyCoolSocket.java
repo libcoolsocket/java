@@ -1,7 +1,7 @@
 package com.genonbeta.coolsocket.variant;
 
 import com.genonbeta.coolsocket.ActiveConnection;
-import com.genonbeta.coolsocket.ConfigFactory;
+import com.genonbeta.coolsocket.config.ConfigFactory;
 import com.genonbeta.coolsocket.CoolSocket;
 
 import java.net.SocketAddress;

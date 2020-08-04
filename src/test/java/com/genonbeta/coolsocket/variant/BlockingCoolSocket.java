@@ -1,7 +1,7 @@
 package com.genonbeta.coolsocket.variant;
 
 import com.genonbeta.coolsocket.ActiveConnection;
-import com.genonbeta.coolsocket.ConfigFactory;
+import com.genonbeta.coolsocket.config.ConfigFactory;
 import com.genonbeta.coolsocket.CoolSocket;
 import com.genonbeta.coolsocket.response.Response;
 
@@ -37,8 +37,8 @@ public class BlockingCoolSocket extends CoolSocket
     public final void onConnected(ActiveConnection activeConnection)
     {
         try {
-            responseQueue.add(activeConnection.receive());
-        } catch (IOException e) {
+            responseQueue.put(activeConnection.receive());
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
     }

@@ -37,7 +37,6 @@ public class DataTransactionTest
                         activeConnection.write(description, buffer, 0, len);
 
                     activeConnection.writeEnd(description);
-                    activeConnection.close();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

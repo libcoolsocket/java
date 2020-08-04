@@ -2,7 +2,6 @@ package com.genonbeta.coolsocket.server;
 
 import com.genonbeta.coolsocket.ActiveConnection;
 import com.genonbeta.coolsocket.CoolSocket;
-import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,8 +43,12 @@ public class DefaultConnectionManager implements ConnectionManager
             } catch (Exception e) {
                 coolSocket.getLogger().log(Level.SEVERE, "An error occurred during handling of a client", e);
             } finally {
+                try {
+                    activeConnection.close();
+                } catch (IOException ignored) {
+                }
+
                 synchronized (connectionList) {
-                    IOUtils.closeQuietly(activeConnection);
                     connectionList.remove(activeConnection);
                 }
             }
