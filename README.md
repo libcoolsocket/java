@@ -1,103 +1,63 @@
-<h1>CoolSocket - Java Socket Implementation</h1>
-CoolSocket is developed to enable you to develop nearby socket communication capable applications without having you write complicated codes.
-It is currently used in TrebleShot file-sharing application
+# CoolSocket - Bidirectional TCP Socket Layer for JavaSE
 
+CoolSocket is a scalable approach to TCP socket communication. It can send just text, or it can send large bytes just 
+like usual streams. The difference is it injects its own communication bits into the bytes delivered so that your 
+requests to stop an operation can be processed.
 
-<h3>How to</h3>
+Here is a quick example:
 
 ```java
+import com.genonbeta.coolsocket.CoolSocket;
+import com.genonbeta.coolsocket.ActiveConnection;
 
-public static class Main {
-    public static void main(String[] args) {
-        try {
-            // To start without blocking, use CoolSocket.start()
-            new CommunicationServer().startDelayed(2000);
+import java.io.IOException;
+import java.net.InetSocketAddress;
 
-            // Server is now started
-
-           CoolSocket.connect(new CoolSocket.ConnectionHandler() {
-                @Override
-                public void onConnect(Client client) {
-                    try {
-                        ActiveConnection activeConnection = client.connect(new InetSocketAddress("127.0.0.1", 8080), CoolSocket.NO_TIMEOUT);
-
-                        JSON replyJSON = new JSONObject();
-                        replyJSON.put("task", "do good not evil");
-
-                        activeConnection.reply(replyJSON.toString());
-
-                        System.out.println("Server said: " + activeConnection.receive().response());
-                        // Server said: {"result": true}
-                    } catch (Exception e) {}
-                }
-           });
-
-        } catch (Exception e) {
-            // Failed to start the server defined below
-            // The port is already in use
-        }
-    }
-}
-
-public class CommunicationServer extends CoolSocket
+public class Main
 {
-		public CommunicationServer()
-		{
-		    // listen on port 8080
-			super(8080);
+    public static void main(String[] args) throws IOException, InterruptedException
+    {
+        final int port = 4534;
+        CoolSocket coolSocket = new CoolSocket(port)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    activeConnection.reply("Hello!");
+                    System.out.println(activeConnection.receive().getAsString());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
 
-			// Can be set using milliseconds to close connection when
-			// their response or our reply cannot be delievered in a given time
-			setSocketTimeout(CoolSocket.NO_TIMEOUT);
-		}
+        coolSocket.start();
 
-		@Override
-		protected void onConnected(final ActiveConnection activeConnection)
-		{
-			try {
-			    // We can also use activeConnection.reply() if the client has called
-			    // activeConnection.receive() first.
-			    // The order of these two method to be called is important.
-			    // They can be changed in the runtime but cannot be expected to work
-			    // when the condition is listener-listener or receiver-receiver.
-			    // You can use these in a loop and they will work indefinetely
-			    // as long as the response can reach to the other within the time set
-				ActiveConnection.Response clientRequest = activeConnection.receive();
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(port), 0);
+        System.out.println(activeConnection.receive().getAsString());
+        activeConnection.reply("Merhaba!");
 
-				JSONObject responseJSON = new JSONObject(clientRequest.response);
-
-				System.out.println("Client said in JSON: " + responseJSON);
-				// {"task": "do good not evil"}
-
-				JSONObject replyJSON = new JSONObject();
-				replyJSON.put("result", true);
-
-				activeConnection.reply(replyJSON.toString());
-			} catch (Exception e) {
-			    // TODO: Handle error.
-			    // This could be due to the request timed out
-			    // Or the JSON element was faulty
-			}
-		}
-	}
+        activeConnection.close();
+        coolSocket.stop();
+    }
 }
 ```
 
-<h3>Implementing CoolSocket</h3>
-<h4>Gradle</h4>
+## Implementing CoolSocket
 
-```xml
-...
+### Gradle
+
+```groovy
+// ...
 repositories {
-    ...
+    // ...
     jcenter()
-    ...
 }
-...
+// ...
 dependencies {
-    ...
+    // ...
     implementation 'com.genonbeta.coolsocket:main:1.0.2'
-    ...
 }
-...
+// ...
 ```
