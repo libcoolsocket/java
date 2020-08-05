@@ -30,11 +30,10 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
-                    byte[] buffer = new byte[8196];
                     int len;
 
-                    while ((len = inputStream.read(buffer)) != -1)
-                        activeConnection.write(description, buffer, 0, len);
+                    while ((len = inputStream.read(description.buffer)) != -1)
+                        activeConnection.write(description, 0, len);
 
                     activeConnection.writeEnd(description);
                 } catch (IOException e) {
@@ -45,14 +44,13 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        byte[] buffer = new byte[8196];
         int len;
         ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
-        ActiveConnection.Description description = activeConnection.readBegin(buffer);
+        ActiveConnection.Description description = activeConnection.readBegin();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        while ((len = activeConnection.read(description, buffer)) != -1)
-            outputStream.write(buffer, 0, len);
+        while ((len = activeConnection.read(description)) != -1)
+            outputStream.write(description.buffer, 0, len);
 
         Assert.assertEquals("The messages should match.", message, outputStream.toString());
 
@@ -70,11 +68,10 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
-                    byte[] buffer = new byte[8196];
-                    activeConnection.write(description, buffer, 0, buffer.length);
+                    activeConnection.write(description, description.buffer);
                     activeConnection.writeEnd(description);
-                } catch (IOException e) {
-                    e.printStackTrace();
+                } catch (IOException ignored) {
+
                 }
             }
         };
@@ -102,8 +99,7 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
-                    byte[] buffer = new byte[8196];
-                    activeConnection.write(description, buffer, 0, buffer.length);
+                    activeConnection.write(description, description.buffer);
                     activeConnection.writeEnd(description);
                 } catch (IOException e) {
                     e.printStackTrace();

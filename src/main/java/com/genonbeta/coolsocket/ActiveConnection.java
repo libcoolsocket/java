@@ -1,10 +1,7 @@
 package com.genonbeta.coolsocket;
 
 import com.genonbeta.coolsocket.config.Config;
-import com.genonbeta.coolsocket.response.ExchangeType;
-import com.genonbeta.coolsocket.response.Flags;
-import com.genonbeta.coolsocket.response.Response;
-import com.genonbeta.coolsocket.response.SizeExceededException;
+import com.genonbeta.coolsocket.response.*;
 import org.json.JSONException;
 
 import java.io.*;
@@ -12,6 +9,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 /**
@@ -20,8 +18,6 @@ import java.nio.ByteBuffer;
  */
 public class ActiveConnection implements Closeable
 {
-    public static final String TAG = ActiveConnection.class.getSimpleName();
-
     private final Socket socket;
 
     private OutputStream privOutputStream;
@@ -31,6 +27,8 @@ public class ActiveConnection implements Closeable
     private int internalCacheLimit = 256 * 1024;
 
     private int protocolVersion;
+
+    private boolean cancelled;
 
     /**
      * An instance with socket connection to a CoolSocket server.
@@ -69,6 +67,31 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Cancel the upcoming or the ongoing read & write operation by throwing an error. The cancelled state will
+     * only be cleared after {@link CancelledException} is thrown or {@link #cancelled()} is invoked.
+     */
+    public void cancel()
+    {
+        cancelled = true;
+    }
+
+    /**
+     * Check whether there is a cancellation request. Calling this will clear the request as you are expected to handle
+     * it. If you are not going to but something else is, then invoke the {@link #cancel()} method after calling this
+     * so that it can see the request.
+     *
+     * @return true if there is a cancellation request.
+     */
+    public boolean cancelled()
+    {
+        if (cancelled) {
+            cancelled = false;
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Connects to a CoolSocket server.
      *
      * @param socketAddress the server address to connection.
@@ -85,46 +108,20 @@ public class ActiveConnection implements Closeable
         return new ActiveConnection(socket, readTimeout);
     }
 
-    /**
-     * This ensures the connection is closed before this instance of the class is about to be
-     * destroyed.
-     *
-     * @throws Throwable Override to use this feature.
-     * @deprecated by the parent
-     */
-    @Override
-    @Deprecated
-    protected void finalize() throws Throwable
-    {
-        super.finalize();
-
-        if (getSocket() != null && !getSocket().isClosed()) {
-            System.out.println(TAG + ": Connections should be closed before their references are being destroyed");
-            getSocket().close();
-        }
-    }
-
-    protected void exchangeInfo(ExchangeType exchangeType) throws IOException
-    {
-        writeFlags(Flags.FLAG_INFO_EXCHANGE);
-        exchangeSend(exchangeType);
-        exchangeReceive();
-    }
-
     private ExchangeType exchangeReceive() throws IOException
     {
         byte[] buffer = new byte[8];
         int featureId = readInteger(buffer);
         ExchangeType exchangeType = ExchangeType.values()[featureId];
-        int maxLength = exchangeType.getMaxLength();
+        int maxLength = exchangeType.maxLength;
         int firstInteger = readInteger(buffer);
         if (firstInteger > maxLength)
-            throw new SizeExceededException("The remote reported size for " + exchangeType + " info cannot be bigger than " +
-                    maxLength + ". The remote reported it as " + firstInteger);
+            throw new SizeExceededException("The remote reported size for " + exchangeType + " info cannot be bigger " +
+                    "than " + maxLength + ". The remote reported it as " + firstInteger);
 
         switch (exchangeType) {
             case Dummy:
-                readAsMuch(new byte[firstInteger], 0, firstInteger);
+                readExactIntoBuffer(new byte[firstInteger], firstInteger);
                 break;
             case ProtocolVersion:
                 protocolVersion = firstInteger;
@@ -153,6 +150,25 @@ public class ActiveConnection implements Closeable
         writeInteger(firstInteger);
         if (bytes != null)
             getOutputStreamPriv().write(bytes);
+    }
+
+    /**
+     * This ensures the connection is closed before this instance of the class is about to be
+     * destroyed.
+     *
+     * @throws Throwable Override to use this feature.
+     * @deprecated by the parent
+     */
+    @Override
+    @Deprecated
+    protected void finalize() throws Throwable
+    {
+        super.finalize();
+
+        if (getSocket() != null && !getSocket().isClosed()) {
+            System.out.println("Connections should be closed before their references are being destroyed");
+            getSocket().close();
+        }
     }
 
     /**
@@ -195,8 +211,53 @@ public class ActiveConnection implements Closeable
         return socket;
     }
 
-    public int read(Description description, byte[] buffer) throws IOException
+    public void handleByteBreak(Description description, boolean localSending) throws IOException
     {
+        if (cancelled())
+            description.byteBreakLocal = ByteBreak.Cancel;
+        else if (protocolVersion == 0) {
+            description.byteBreakLocal = ByteBreak.InfoExchange;
+            description.pendingExchange = ExchangeType.ProtocolVersion;
+        } else
+            description.byteBreakLocal = ByteBreak.None;
+
+        if (localSending) {
+            writeByteBreak(description.byteBreakLocal);
+            description.byteBreakRemote = readByteBreak();
+        } else {
+            description.byteBreakRemote = readByteBreak();
+            writeByteBreak(description.byteBreakLocal);
+        }
+
+        if (description.byteBreakLocal.equals(ByteBreak.Cancel) || description.byteBreakRemote.equals(ByteBreak.Cancel))
+            throw new CancelledException("This operation has been cancelled.", description.byteBreakRemote.equals(
+                    ByteBreak.Cancel));
+
+        // If one side sends None, it will mean unsupported. If both sides send None, it will mean, no operation
+        // requested by both sides.
+        if (!description.byteBreakLocal.equals(description.byteBreakRemote)
+                || description.byteBreakLocal.equals(ByteBreak.None))
+            return;
+
+        switch (description.byteBreakLocal) {
+            case InfoExchange:
+                if (localSending)
+                    exchangeSend(exchangeReceive());
+                else {
+                    exchangeSend(description.pendingExchange);
+                    exchangeReceive();
+                }
+                break;
+            default:
+                return;
+        }
+
+        handleByteBreak(description, localSending);
+    }
+
+    public int read(Description description) throws IOException
+    {
+        byte[] buffer = description.buffer;
         boolean chunked = description.flags.chunked();
 
         if (chunked && description.awaitingChunkSize <= 0) {
@@ -220,40 +281,33 @@ public class ActiveConnection implements Closeable
         return len;
     }
 
+    public Description readBegin() throws IOException
+    {
+        return readBegin(new byte[8096]);
+    }
+
     public Description readBegin(byte[] buffer) throws IOException
     {
         Flags flags = new Flags(readFlags(buffer));
+        Description description = new Description(flags, flags.chunked() ? CoolSocket.LENGTH_UNSPECIFIED
+                : readSize(buffer), buffer);
 
-        if (flags.exchange()) {
-            ExchangeType exchangeType = exchangeReceive();
-            exchangeSend(exchangeType);
-            return readBegin(buffer);
-        }
+        handleByteBreak(description, false);
 
-        return new Description(flags, flags.chunked() ? CoolSocket.LENGTH_UNSPECIFIED : readSize(buffer));
+        return description;
     }
 
-    protected long readFlags(byte[] buffer) throws IOException
+    private int readByte() throws IOException
     {
-        return readLong(buffer);
+        return getInputStreamPriv().read();
     }
 
-    protected int readInteger(byte[] buffer) throws IOException
+    protected ByteBreak readByteBreak() throws IOException
     {
-        return readAsMuch(buffer, 0, Integer.BYTES).getInt();
+        return ByteBreak.from(readByte());
     }
 
-    protected long readLong(byte[] buffer) throws IOException
-    {
-        return readAsMuch(buffer, 0, Long.BYTES).getLong();
-    }
-
-    protected long readSize(byte[] buffer) throws IOException
-    {
-        return readLong(buffer);
-    }
-
-    protected ByteBuffer readAsMuch(byte[] buffer, int offset, int length) throws IOException
+    protected void readExact(byte[] buffer, int length) throws IOException
     {
         if (length < 1 || length > buffer.length)
             throw new IndexOutOfBoundsException("length cannot be a negative value, or be larger than the buffer.");
@@ -266,8 +320,32 @@ public class ActiveConnection implements Closeable
 
         if (read < length)
             throw new IOException("Target closed connection before reading as many data.");
+    }
 
-        return ByteBuffer.wrap(buffer, offset, length);
+    protected ByteBuffer readExactIntoBuffer(byte[] buffer, int length) throws IOException
+    {
+        readExact(buffer, length);
+        return ByteBuffer.wrap(buffer, 0, length);
+    }
+
+    protected long readFlags(byte[] buffer) throws IOException
+    {
+        return readLong(buffer);
+    }
+
+    protected int readInteger(byte[] buffer) throws IOException
+    {
+        return readExactIntoBuffer(buffer, Integer.BYTES).getInt();
+    }
+
+    protected long readLong(byte[] buffer) throws IOException
+    {
+        return readExactIntoBuffer(buffer, Long.BYTES).getLong();
+    }
+
+    protected long readSize(byte[] buffer) throws IOException
+    {
+        return readLong(buffer);
     }
 
     public Response receive() throws IOException
@@ -292,20 +370,17 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Response receive(OutputStream outputStream, int maxLength) throws IOException
     {
-        final byte[] buffer = new byte[8096];
         int len;
-
-        Description description = readBegin(buffer);
-        boolean chunked = description.flags.chunked();
+        Description description = readBegin();
 
         do {
-            len = read(description, buffer);
+            len = read(description);
 
             if (maxLength > 0 && description.handedLength > maxLength)
                 throw new SizeExceededException("The length of the data exceeds the maximum length.");
 
             if (len > 0)
-                outputStream.write(buffer, 0, len);
+                outputStream.write(description.buffer, 0, len);
         } while (!description.done());
 
         return new Response(getSocket().getRemoteSocketAddress(), description.flags.all(), description.totalLength,
@@ -346,8 +421,8 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Prepare for sending a part. This will send the flags for the upcoming part transmission so that the remote will
-     * know how to treat the data it receives. After this method call, you should call
+     * Prepare for sending a response. This will send the flags for the upcoming data transmission so that the remote
+     * will know how to treat the data it receives. After this method call, you should invoke
      * {@link #write(Description, byte[], int, int)} to begin writing bytes or end the part with the
      * {@link #writeEnd(Description)} method call.
      *
@@ -360,18 +435,31 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
-        if (protocolVersion == 0)
-            exchangeInfo(ExchangeType.ProtocolVersion);
+        byte[] buffer = new byte[8096];
 
         if (totalLength == CoolSocket.LENGTH_UNSPECIFIED)
             flags |= Flags.FLAG_DATA_CHUNKED;
 
         writeFlags(flags);
 
+        Description description = new Description(flags, totalLength, buffer);
+
         if (totalLength > CoolSocket.LENGTH_UNSPECIFIED)
             writeSize(totalLength);
 
-        return new Description(flags, totalLength);
+        handleByteBreak(description, true);
+
+        return description;
+    }
+
+    protected void writeByte(int bite) throws IOException
+    {
+        getOutputStreamPriv().write(bite);
+    }
+
+    protected void writeByteBreak(ByteBreak byteBreak) throws IOException
+    {
+        writeByte(byteBreak.ordinal());
     }
 
     protected void writeFlags(long flags) throws IOException
@@ -399,6 +487,11 @@ public class ActiveConnection implements Closeable
         write(description, bytes, 0, bytes.length);
     }
 
+    public synchronized void write(Description description, int offset, int length) throws IOException
+    {
+        write(description, description.buffer, offset, length);
+    }
+
     public synchronized void write(Description description, byte[] bytes, int offset, int length)
             throws IOException
     {
@@ -424,11 +517,9 @@ public class ActiveConnection implements Closeable
 
     public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
     {
-        byte[] buffer = new byte[8096];
         int len;
-
-        while ((len = inputStream.read(buffer)) != -1 && !description.done()) {
-            write(description, buffer, 0, len);
+        while ((len = inputStream.read(description.buffer)) != -1 && !description.done()) {
+            write(description, 0, len);
         }
     }
 
@@ -450,18 +541,33 @@ public class ActiveConnection implements Closeable
 
         public long awaitingChunkSize;
 
-        public Description(long flags, long totalLength)
+        public final byte[] buffer;
+
+        public ByteBreak byteBreakLocal = null;
+
+        public ByteBreak byteBreakRemote = null;
+
+        public ExchangeType pendingExchange = null;
+
+        public Description(long flags, long totalLength, byte[] buffer)
         {
-            this(new Flags(flags), totalLength);
+            this(new Flags(flags), totalLength, buffer);
         }
 
-        public Description(Flags flags, long totalLength)
+        public Description(Flags flags, long totalLength, byte[] buffer)
         {
             if (flags == null)
                 throw new NullPointerException("Flags cannot be null.");
 
+            if (buffer == null)
+                throw new NullPointerException("Buffer cannot be null.");
+
+            if (buffer.length < 8096)
+                throw new BufferUnderflowException();
+
             this.flags = flags;
             this.totalLength = totalLength == CoolSocket.LENGTH_UNSPECIFIED ? 0 : totalLength;
+            this.buffer = new byte[8096];
         }
 
         public boolean done()
