@@ -202,6 +202,26 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Get the protocol version of this implementation.
+     *
+     * @return the protocol version.
+     */
+    public static int getProtocolVersion()
+    {
+        return Config.PROTOCOL_VERSION;
+    }
+
+    /**
+     * Returns the remote protocol version that becomes available after the first interaction.
+     *
+     * @return the remote protocol version.
+     */
+    public int getProtocolVersionOfRemote()
+    {
+        return protocolVersion;
+    }
+
+    /**
      * The socket that is used to communicate
      *
      * @return Null if no socket was provided or the socket instance.
