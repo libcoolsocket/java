@@ -43,11 +43,11 @@ public class PlainTransactionTest
 
         ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
         activeConnection.reply(message);
-        activeConnection.close();
 
         Response response = coolSocket.waitForResponse();
         Assert.assertEquals("The messages should be same", message, response.getAsString());
 
+        activeConnection.close();
         coolSocket.stop();
     }
 

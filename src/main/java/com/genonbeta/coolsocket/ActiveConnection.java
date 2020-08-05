@@ -280,23 +280,24 @@ public class ActiveConnection implements Closeable
         byte[] buffer = description.buffer;
         boolean chunked = description.flags.chunked();
 
-        if (chunked && description.awaitingChunkSize <= 0) {
-            description.awaitingChunkSize = readSize(buffer);
+        if (description.awaitingSize <= 0) {
+            handleByteBreak(description, false);
+            description.awaitingSize = readSize(buffer);
 
-            if (description.awaitingChunkSize == CoolSocket.LENGTH_UNSPECIFIED)
+            if (description.awaitingSize == CoolSocket.LENGTH_UNSPECIFIED)
                 return CoolSocket.LENGTH_UNSPECIFIED;
         }
 
         int readAsMuch = (int) (chunked
-                ? (description.awaitingChunkSize < buffer.length ? description.awaitingChunkSize : buffer.length)
+                ? (description.awaitingSize < buffer.length ? description.awaitingSize : buffer.length)
                 : (description.leftLength() < buffer.length ? description.leftLength() : buffer.length));
+
         int len = getInputStreamPriv().read(buffer, 0, readAsMuch);
         description.handedLength += len;
+        description.awaitingSize -= len;
 
-        if (chunked) {
-            description.awaitingChunkSize -= len;
+        if (chunked)
             description.totalLength += len;
-        }
 
         return len;
     }
@@ -415,16 +416,16 @@ public class ActiveConnection implements Closeable
         writeEnd(description);
     }
 
-    public void replyWithFixedLength(long flags, InputStream inputStream, long fixedSize) throws IOException
+    public void replyInChunks(long flags, InputStream inputStream) throws IOException
     {
-        Description description = writeBegin(flags, fixedSize);
+        Description description = writeBegin(flags, CoolSocket.LENGTH_UNSPECIFIED);
         writeAll(description, inputStream);
         writeEnd(description);
     }
 
-    public void replyWithChunked(long flags, InputStream inputStream) throws IOException
+    public void replyWithFixedLength(long flags, InputStream inputStream, long fixedSize) throws IOException
     {
-        Description description = writeBegin(flags, CoolSocket.LENGTH_UNSPECIFIED);
+        Description description = writeBegin(flags, fixedSize);
         writeAll(description, inputStream);
         writeEnd(description);
     }
@@ -502,12 +503,12 @@ public class ActiveConnection implements Closeable
         writeLong(size);
     }
 
-    public synchronized void write(Description description, byte[] bytes) throws IOException
+    public void write(Description description, byte[] bytes) throws IOException
     {
         write(description, bytes, 0, bytes.length);
     }
 
-    public synchronized void write(Description description, int offset, int length) throws IOException
+    public void write(Description description, int offset, int length) throws IOException
     {
         write(description, description.buffer, offset, length);
     }
@@ -526,11 +527,13 @@ public class ActiveConnection implements Closeable
         int size = length - offset;
         description.handedLength += size;
 
-        if (description.flags.chunked()) {
-            writeSize(size);
+        if (description.flags.chunked())
             description.totalLength += size;
-        } else if (description.handedLength > description.totalLength)
+        else if (description.handedLength > description.totalLength)
             throw new SizeExceededException("The size of the data exceeds that length notified to the remote.");
+
+        handleByteBreak(description, true);
+        writeSize(size);
 
         getOutputStreamPriv().write(bytes, offset, length);
     }
@@ -545,9 +548,10 @@ public class ActiveConnection implements Closeable
 
     public synchronized void writeEnd(Description description) throws IOException
     {
-        if (description.flags.chunked())
+        if (description.flags.chunked()) {
+            handleByteBreak(description, true);
             writeSize(-1);
-
+        }
         getOutputStreamPriv().flush();
     }
 
@@ -559,7 +563,7 @@ public class ActiveConnection implements Closeable
 
         public long totalLength;
 
-        public long awaitingChunkSize;
+        public long awaitingSize;
 
         public final byte[] buffer;
 
@@ -592,7 +596,7 @@ public class ActiveConnection implements Closeable
 
         public boolean done()
         {
-            return (flags.chunked() && awaitingChunkSize == CoolSocket.LENGTH_UNSPECIFIED)
+            return (flags.chunked() && awaitingSize == CoolSocket.LENGTH_UNSPECIFIED)
                     || (!flags.chunked() && leftLength() == 0);
         }
 

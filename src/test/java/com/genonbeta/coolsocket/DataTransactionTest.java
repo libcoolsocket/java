@@ -36,6 +36,10 @@ public class DataTransactionTest
                         activeConnection.write(description, 0, len);
 
                     activeConnection.writeEnd(description);
+
+                    // do the above with shortcuts
+                    inputStream.reset();
+                    activeConnection.replyInChunks(0, inputStream);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -53,6 +57,9 @@ public class DataTransactionTest
             outputStream.write(description.buffer, 0, len);
 
         Assert.assertEquals("The messages should match.", message, outputStream.toString());
+
+        // do the above with shortcuts
+        Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
 
         activeConnection.close();
         coolSocket.stop();
@@ -123,7 +130,8 @@ public class DataTransactionTest
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\n";
 
-        final InputStream inputStream = new ByteArrayInputStream(message.getBytes());
+        final byte[] messageBytes = message.getBytes();
+        final InputStream inputStream = new ByteArrayInputStream(messageBytes);
 
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
@@ -131,7 +139,7 @@ public class DataTransactionTest
             public void onConnected(ActiveConnection activeConnection)
             {
                 try {
-                    activeConnection.replyWithChunked(0, inputStream);
+                    activeConnection.replyWithFixedLength(0, inputStream, messageBytes.length);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
