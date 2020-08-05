@@ -4,7 +4,7 @@ package com.genonbeta.coolsocket.response;
  * This enum encapsulates the type of info that can be exchanged. This is used when the byte break
  * {@link ByteBreak#InfoExchange} is requested by any side of the communication.
  */
-public enum ExchangeType
+public enum InfoExchange
 {
     /**
      * This is not meant for real world usage. Even if you use this, the results may be incomplete due to it being a
@@ -23,7 +23,7 @@ public enum ExchangeType
      */
     public final int maxLength;
 
-    ExchangeType(int maxLength)
+    InfoExchange(int maxLength)
     {
         this.maxLength = maxLength;
     }

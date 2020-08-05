@@ -108,18 +108,18 @@ public class ActiveConnection implements Closeable
         return new ActiveConnection(socket, readTimeout);
     }
 
-    private ExchangeType exchangeReceive() throws IOException
+    private InfoExchange exchangeReceive() throws IOException
     {
         byte[] buffer = new byte[8];
         int featureId = readInteger(buffer);
-        ExchangeType exchangeType = ExchangeType.values()[featureId];
-        int maxLength = exchangeType.maxLength;
+        InfoExchange infoExchange = InfoExchange.values()[featureId];
+        int maxLength = infoExchange.maxLength;
         int firstInteger = readInteger(buffer);
         if (firstInteger > maxLength)
-            throw new SizeExceededException("The remote reported size for " + exchangeType + " info cannot be bigger " +
+            throw new SizeExceededException("The remote reported size for " + infoExchange + " info cannot be bigger " +
                     "than " + maxLength + ". The remote reported it as " + firstInteger);
 
-        switch (exchangeType) {
+        switch (infoExchange) {
             case Dummy:
                 readExactIntoBuffer(new byte[firstInteger], firstInteger);
                 break;
@@ -127,16 +127,16 @@ public class ActiveConnection implements Closeable
                 protocolVersion = firstInteger;
         }
 
-        return exchangeType;
+        return infoExchange;
     }
 
-    private void exchangeSend(ExchangeType exchangeType) throws IOException
+    private void exchangeSend(InfoExchange infoExchange) throws IOException
     {
-        writeInteger(exchangeType.ordinal());
+        writeInteger(infoExchange.ordinal());
 
         int firstInteger;
         byte[] bytes;
-        switch (exchangeType) {
+        switch (infoExchange) {
             case ProtocolVersion:
                 firstInteger = Config.PROTOCOL_VERSION;
                 bytes = null;
@@ -217,7 +217,7 @@ public class ActiveConnection implements Closeable
             description.byteBreakLocal = ByteBreak.Cancel;
         else if (protocolVersion == 0) {
             description.byteBreakLocal = ByteBreak.InfoExchange;
-            description.pendingExchange = ExchangeType.ProtocolVersion;
+            description.pendingExchange = InfoExchange.ProtocolVersion;
         } else
             description.byteBreakLocal = ByteBreak.None;
 
@@ -547,7 +547,7 @@ public class ActiveConnection implements Closeable
 
         public ByteBreak byteBreakRemote = null;
 
-        public ExchangeType pendingExchange = null;
+        public InfoExchange pendingExchange = null;
 
         public Description(long flags, long totalLength, byte[] buffer)
         {
