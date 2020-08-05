@@ -16,6 +16,7 @@ public interface ConnectionManager
     /**
      * Handle a client connection assigning it to a thread that will execute it asynchronously.
      *
+     * @param coolSocket the calling CoolSocket instance.
      * @param activeConnection to handle.
      */
     void handleClient(CoolSocket coolSocket, ActiveConnection activeConnection);

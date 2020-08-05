@@ -20,6 +20,7 @@ public interface ConfigFactory
      * you make whether the server socket will be a part of a SSL context.
      *
      * @return a preconfigured server socket instance.
+     * @throws IOException if the factory fails to create the server socket instance due to misconfiguration.
      */
     ServerSocket createServer() throws IOException;
 

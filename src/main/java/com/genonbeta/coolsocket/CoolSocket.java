@@ -160,6 +160,7 @@ public abstract class CoolSocket
      * Handle the request from a client on a different thread.
      *
      * @param socket the socket representing the client.
+     * @throws SocketException if configuring the socket with the config factory fails.
      */
     public void respondRequest(final Socket socket) throws SocketException
     {
@@ -286,6 +287,7 @@ public abstract class CoolSocket
      *
      * @param timeout time to wait in millisecond
      * @throws InterruptedException if the calling thread goes into interrupted state.
+     * @throws IOException          if an IO error occurs, or the session fails to close.
      * @see #stop()
      * @see #stopAsynchronously()
      */

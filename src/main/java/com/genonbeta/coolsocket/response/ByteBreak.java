@@ -7,8 +7,8 @@ package com.genonbeta.coolsocket.response;
  * They are also sent and received to ensure the bidirectional communication between the two sides still occurs even
  * when the one directional read-write is the case, i.e. when you're writing but not reading at all.
  * <p>
- * They are also exchanged during the beginning of a read or write operation, or when there is a read & write operation
- * taking place.
+ * They are also exchanged during the beginning of a read or write operation, or when there is a read and write
+ * operation taking place.
  * <p>
  * The cancel request, for instance, is a byte break operation that happens during any of the read or write operations.
  * <p>

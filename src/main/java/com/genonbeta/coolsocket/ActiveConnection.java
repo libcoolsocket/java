@@ -52,6 +52,7 @@ public class ActiveConnection implements Closeable
      * @param socket  The connection to CoolSocket server or client.
      * @param timeout Timeout that will limit the amount of time that the requests to wait for
      *                another packet to arrive or go.
+     * @throws SocketException if setting the socket timeout fails.
      */
     public ActiveConnection(Socket socket, int timeout) throws SocketException
     {
@@ -67,7 +68,7 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Cancel the upcoming or the ongoing read & write operation by throwing an error. The cancelled state will
+     * Cancel the upcoming or the ongoing read and write operation by throwing an error. The cancelled state will
      * only be cleared after {@link CancelledException} is thrown or {@link #cancelled()} is invoked.
      */
     public void cancel()
@@ -493,6 +494,7 @@ public class ActiveConnection implements Closeable
      *                    the length is unknown at the moment. Doing so will make this transmission process
      *                    {@link Flags#FLAG_DATA_CHUNKED} where the data length will only be visible as much as
      *                    we read from the source.
+     * @return the description object for this write operation.
      * @throws IOException when socket related IO error occurs.
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
