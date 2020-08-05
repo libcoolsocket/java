@@ -4,11 +4,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.genonbeta.coolsocket</groupId>
-    <artifactId>main</artifactId>
+    <groupId>org.monora.coolsocket</groupId>
+    <artifactId>core</artifactId>
     <version>1.0.4</version>
     <name>CoolSocket</name>
-    <description>Socket implementation</description>
+    <description>Bidirectional TCP socket layer and server</description>
     <url>https://github.com//libcoolsocket/java</url>
     <licenses>
         <license>
@@ -18,14 +18,14 @@
     </licenses>
     <developers>
         <developer>
-            <id>genonbeta</id>
-            <name>Genonbeta</name>
-            <email>genonbeta@gmail.com</email>
+            <id>monora</id>
+            <name>monora</name>
+            <email>contact@monora.org</email>
         </developer>
     </developers>
     <scm>
         <connection>https://github.com/libcoolsocket/java.git</connection>
-        <developerConnection>https://github.com/libcoolsocket/java.git</developerConnection>
+        <developerConnection>https://monora.org</developerConnection>
         <url>https://github.com/libcoolsocket/java</url>
     </scm>
 
@@ -51,12 +51,6 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.12</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>RELEASE</version>
             <scope>test</scope>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-jar-plugin -->
@@ -142,6 +136,14 @@
             </build>
         </profile>
     </profiles>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/libcoolsocket/java</url>
+        </repository>
+    </distributionManagement>
 
     <pluginRepositories>
 
