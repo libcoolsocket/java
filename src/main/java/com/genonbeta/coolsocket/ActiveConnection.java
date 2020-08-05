@@ -279,20 +279,18 @@ public class ActiveConnection implements Closeable
     {
         byte[] buffer = description.buffer;
         boolean chunked = description.flags.chunked();
+        long available = 0;
 
         if (description.awaitingSize <= 0) {
             handleByteBreak(description, false);
             description.awaitingSize = readSize(buffer);
+            available = description.available();
 
-            if (description.awaitingSize == CoolSocket.LENGTH_UNSPECIFIED)
+            if (available == CoolSocket.LENGTH_UNSPECIFIED)
                 return CoolSocket.LENGTH_UNSPECIFIED;
         }
 
-        int readAsMuch = (int) (chunked
-                ? (description.awaitingSize < buffer.length ? description.awaitingSize : buffer.length)
-                : (description.leftLength() < buffer.length ? description.leftLength() : buffer.length));
-
-        int len = getInputStreamPriv().read(buffer, 0, readAsMuch);
+        int len = getInputStreamPriv().read(buffer, 0, (int) Math.min(description.buffer.length, available));
         description.handedLength += len;
         description.awaitingSize -= len;
 
@@ -402,7 +400,7 @@ public class ActiveConnection implements Closeable
 
             if (len > 0)
                 outputStream.write(description.buffer, 0, len);
-        } while (!description.done());
+        } while (description.hasAvailable());
 
         return new Response(getSocket().getRemoteSocketAddress(), description.flags.all(), description.totalLength,
                 outputStream instanceof ByteArrayOutputStream ? (ByteArrayOutputStream) outputStream : null);
@@ -439,6 +437,49 @@ public class ActiveConnection implements Closeable
     public void setInternalCacheLimit(int internalCacheLimit)
     {
         this.internalCacheLimit = internalCacheLimit;
+    }
+
+    public void write(Description description, byte[] bytes) throws IOException
+    {
+        write(description, bytes, 0, bytes.length);
+    }
+
+    public void write(Description description, int offset, int length) throws IOException
+    {
+        write(description, description.buffer, offset, length);
+    }
+
+    public synchronized void write(Description description, byte[] bytes, int offset, int length)
+            throws IOException
+    {
+        if (offset < 0 || (bytes.length > 0 && offset >= bytes.length))
+            throw new ArrayIndexOutOfBoundsException("The offset cannot be smaller than 0, or equal to or larger " +
+                    "than the actual size of the data.");
+
+        if (length < 0 || (bytes.length > 0 && length > bytes.length))
+            throw new ArrayIndexOutOfBoundsException("The length cannot be 0 or larger than the actual size of the " +
+                    "data.");
+
+        int size = length - offset;
+        description.handedLength += size;
+
+        if (description.flags.chunked())
+            description.totalLength += size;
+        else if (description.handedLength > description.totalLength)
+            throw new SizeExceededException("The size of the data exceeds that length notified to the remote.");
+
+        handleByteBreak(description, true);
+        writeSize(size);
+
+        getOutputStreamPriv().write(bytes, offset, length);
+    }
+
+    public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
+    {
+        int len;
+        while ((len = inputStream.read(description.buffer)) != -1) {
+            write(description, 0, len);
+        }
     }
 
     /**
@@ -483,6 +524,16 @@ public class ActiveConnection implements Closeable
         writeByte(byteBreak.ordinal());
     }
 
+    public synchronized void writeEnd(Description description) throws IOException
+    {
+        if (description.flags.chunked()) {
+            handleByteBreak(description, true);
+            writeSize(-1);
+        }
+
+        getOutputStreamPriv().flush();
+    }
+
     protected void writeFlags(long flags) throws IOException
     {
         writeSize(flags);
@@ -501,58 +552,6 @@ public class ActiveConnection implements Closeable
     protected void writeSize(long size) throws IOException
     {
         writeLong(size);
-    }
-
-    public void write(Description description, byte[] bytes) throws IOException
-    {
-        write(description, bytes, 0, bytes.length);
-    }
-
-    public void write(Description description, int offset, int length) throws IOException
-    {
-        write(description, description.buffer, offset, length);
-    }
-
-    public synchronized void write(Description description, byte[] bytes, int offset, int length)
-            throws IOException
-    {
-        if (offset < 0 || (bytes.length > 0 && offset >= bytes.length))
-            throw new ArrayIndexOutOfBoundsException("The offset cannot be smaller than 0, or equal to or larger " +
-                    "than the actual size of the data.");
-
-        if (length < 0 || (bytes.length > 0 && length > bytes.length))
-            throw new ArrayIndexOutOfBoundsException("The length cannot be 0 or larger than the actual size of the " +
-                    "data.");
-
-        int size = length - offset;
-        description.handedLength += size;
-
-        if (description.flags.chunked())
-            description.totalLength += size;
-        else if (description.handedLength > description.totalLength)
-            throw new SizeExceededException("The size of the data exceeds that length notified to the remote.");
-
-        handleByteBreak(description, true);
-        writeSize(size);
-
-        getOutputStreamPriv().write(bytes, offset, length);
-    }
-
-    public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
-    {
-        int len;
-        while ((len = inputStream.read(description.buffer)) != -1 && !description.done()) {
-            write(description, 0, len);
-        }
-    }
-
-    public synchronized void writeEnd(Description description) throws IOException
-    {
-        if (description.flags.chunked()) {
-            handleByteBreak(description, true);
-            writeSize(-1);
-        }
-        getOutputStreamPriv().flush();
     }
 
     public static class Description
@@ -590,19 +589,19 @@ public class ActiveConnection implements Closeable
                 throw new BufferUnderflowException();
 
             this.flags = flags;
-            this.totalLength = totalLength == CoolSocket.LENGTH_UNSPECIFIED ? 0 : totalLength;
+            this.totalLength = totalLength <= CoolSocket.LENGTH_UNSPECIFIED ? 0 : totalLength;
             this.buffer = new byte[8096];
         }
 
-        public boolean done()
+        public long available()
         {
-            return (flags.chunked() && awaitingSize == CoolSocket.LENGTH_UNSPECIFIED)
-                    || (!flags.chunked() && leftLength() == 0);
+            return flags.chunked() ? awaitingSize
+                    : (totalLength <= handedLength ? CoolSocket.LENGTH_UNSPECIFIED : totalLength - handedLength);
         }
 
-        public long leftLength()
+        public boolean hasAvailable()
         {
-            return totalLength - handedLength;
+            return available() != CoolSocket.LENGTH_UNSPECIFIED;
         }
     }
 }
