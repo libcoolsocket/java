@@ -46,8 +46,8 @@ public class BlockingCoolSocket extends CoolSocket
     /**
      * Wait for the client response to become available and return when there is one ready.
      *
-     * @return the response the client sent.
-     * @throws InterruptedException if the calling thread goes into the interrupted state.
+     * @return The response the client sent.
+     * @throws InterruptedException If the calling thread goes into the interrupted state.
      */
     public Response waitForResponse() throws InterruptedException
     {

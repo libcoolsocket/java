@@ -25,7 +25,7 @@ public class Flags
     /**
      * Whether this data was received in chunks.
      *
-     * @return true if the data was chunked.
+     * @return True if the data was chunked.
      */
     public boolean chunked()
     {

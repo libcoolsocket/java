@@ -10,8 +10,8 @@ public interface ConfigFactory
      * Configure the server socket for the server side before the usage. Throws whatever the error it faces due to a
      * misconfiguration.
      *
-     * @param serverSocket to be configured.
-     * @throws IOException when an unrecoverable error occurs due to misconfiguration.
+     * @param serverSocket To be configured.
+     * @throws IOException When an unrecoverable error occurs due to misconfiguration.
      */
     void configureServer(ServerSocket serverSocket) throws IOException;
 
@@ -19,8 +19,8 @@ public interface ConfigFactory
      * Produce a {@link ServerSocket} instance preconfigured with {@link #configureServer(ServerSocket)}. It is up to
      * you make whether the server socket will be a part of a SSL context.
      *
-     * @return a preconfigured server socket instance.
-     * @throws IOException if the factory fails to create the server socket instance due to misconfiguration.
+     * @return A preconfigured server socket instance.
+     * @throws IOException If the factory fails to create the server socket instance due to misconfiguration.
      */
     ServerSocket createServer() throws IOException;
 
@@ -28,14 +28,15 @@ public interface ConfigFactory
      * Configure the socket connection to a client before its actual usage. The configuration may be different from
      * that of {@link ServerSocket#accept()} assigns.
      *
-     * @param client to configure.
-     * @throws SocketException when an unrecoverable error occurs due to misconfiguration.
+     * @param client To configure.
+     * @throws SocketException When an unrecoverable error occurs due to misconfiguration.
      */
     void configureClient(Socket client) throws SocketException;
 
     /**
      * The address that the upcoming products will be assigned to. This does not necessarily reflect the
-     * @return the address that the server will be bound to.
+     *
+     * @return The address that the server will be bound to.
      */
     SocketAddress getSocketAddress();
 
@@ -43,7 +44,7 @@ public interface ConfigFactory
      * Get the server port assigned to the server sockets coming out of this factory. This does not necessarily reflect
      * the ports assigned previous products.
      *
-     * @return the port number assigned by this factory instance.
+     * @return The port number assigned by this factory instance.
      */
     default int getPort()
     {
@@ -54,7 +55,7 @@ public interface ConfigFactory
      * Time to wait for each client before throwing an error, {@link java.util.concurrent.TimeoutException} in the case
      * case {@link ServerSocket#accept()}.
      *
-     * @param timemillis the max time to wait in milliseconds.
+     * @param timemillis The max time to wait in milliseconds.
      * @see ServerSocket#setSoTimeout(int)
      * @see ServerSocket#accept()
      */
@@ -64,7 +65,7 @@ public interface ConfigFactory
      * Read timeout in any scenario. This doesn't affect existing instances. A "0" (zero) value will mean to wait
      * indefinitely.
      *
-     * @param timemillis the max time to wait in milliseconds.
+     * @param timemillis The max time to wait in milliseconds.
      * @see Socket#setSoTimeout(int)
      * @see InputStream#read()
      */
@@ -73,7 +74,7 @@ public interface ConfigFactory
     /**
      * Set socket address for the server.
      *
-     * @param socketAddress to be used with server socket.
+     * @param socketAddress To be used with server socket.
      */
     void setSocketAddress(SocketAddress socketAddress);
 }

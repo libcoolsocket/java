@@ -1,6 +1,5 @@
 package org.monora.coolsocket.core;
 
-import org.json.JSONException;
 import org.monora.coolsocket.core.config.Config;
 import org.monora.coolsocket.core.response.*;
 
@@ -31,7 +30,7 @@ public class ActiveConnection implements Closeable
     private boolean cancelled;
 
     /**
-     * An instance with socket connection to a CoolSocket server.
+     * Create an instance with a socket connection to a CoolSocket server.
      *
      * @param socket The connection to CoolSocket server or client.
      */
@@ -52,7 +51,7 @@ public class ActiveConnection implements Closeable
      * @param socket  The connection to CoolSocket server or client.
      * @param timeout Timeout that will limit the amount of time that the requests to wait for
      *                another packet to arrive or go.
-     * @throws SocketException if setting the socket timeout fails.
+     * @throws SocketException If setting the socket timeout fails.
      */
     public ActiveConnection(Socket socket, int timeout) throws SocketException
     {
@@ -60,16 +59,22 @@ public class ActiveConnection implements Closeable
         socket.setSoTimeout(timeout);
     }
 
+    /**
+     * Close the socket, and thus this connection instance.
+     *
+     * @throws IOException If IO error occurs, or the socket is already closed.
+     */
     @Override
     public void close() throws IOException
     {
-        if (socket != null)
-            socket.close();
+        socket.close();
     }
 
     /**
-     * Cancel the upcoming or the ongoing read and write operation by throwing an error. The cancelled state will
-     * only be cleared after {@link CancelledException} is thrown or {@link #cancelled()} is invoked.
+     * Cancel the upcoming or the ongoing read and write operation by throwing an error.
+     * <p>
+     * The cancelled state will be cleared after {@link CancelledException} is thrown or {@link #cancelled()} is
+     * invoked.
      */
     public void cancel()
     {
@@ -77,11 +82,12 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Check whether there is a cancellation request. Calling this will clear the request as you are expected to handle
-     * it. If you are not going to but something else is, then invoke the {@link #cancel()} method after calling this
-     * so that it can see the request.
+     * Check whether there is a cancellation request.
+     * <p>
+     * Calling this will clear the request as you are expected to handle it. If you are not going to but something else
+     * is, then invoke the {@link #cancel()} method after calling this so that it can see the request.
      *
-     * @return true if there is a cancellation request.
+     * @return True if there is a cancellation request.
      */
     public boolean cancelled()
     {
@@ -95,10 +101,10 @@ public class ActiveConnection implements Closeable
     /**
      * Connects to a CoolSocket server.
      *
-     * @param socketAddress the server address to connection.
-     * @param readTimeout   the maximum time allowed during reading from the input channel.
-     * @return the connection object representing an active connection.
-     * @throws IOException if connection fails for some reason.
+     * @param socketAddress The server address to connection.
+     * @param readTimeout   The maximum time allowed during reading from the input channel.
+     * @return The connection object representing an active connection.
+     * @throws IOException If connection fails for some reason.
      */
     public static ActiveConnection connect(SocketAddress socketAddress, int readTimeout) throws IOException
     {
@@ -109,11 +115,20 @@ public class ActiveConnection implements Closeable
         return new ActiveConnection(socket, readTimeout);
     }
 
+    /**
+     * Retrieve the {@link InfoExchange} value from the remote and do the appropriate operation based on that.
+     * <p>
+     * For instance, the remote may send us the protocol version using the {@link InfoExchange#ProtocolVersion} value.
+     * After that we read the next integer that we use as the value or the length depending on the request type.
+     *
+     * @return The value that was executed.
+     * @throws IOException If an IO error occurs.
+     */
     private InfoExchange exchangeReceive() throws IOException
     {
         byte[] buffer = new byte[8];
         int featureId = readInteger(buffer);
-        InfoExchange infoExchange = InfoExchange.values()[featureId];
+        InfoExchange infoExchange = InfoExchange.from(featureId);
         int maxLength = infoExchange.maxLength;
         int firstInteger = readInteger(buffer);
         if (firstInteger > maxLength)
@@ -131,6 +146,12 @@ public class ActiveConnection implements Closeable
         return infoExchange;
     }
 
+    /**
+     * Send the info that was requested by us or by the remote.
+     *
+     * @param infoExchange The type info that is being exchanged.
+     * @throws IOException If an IO error occurs.
+     */
     private void exchangeSend(InfoExchange infoExchange) throws IOException
     {
         writeInteger(infoExchange.ordinal());
@@ -154,11 +175,10 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * This ensures the connection is closed before this instance of the class is about to be
-     * destroyed.
+     * This ensures the connection is closed before this instance of the class is destroyed.
      *
      * @throws Throwable Override to use this feature.
-     * @deprecated by the parent
+     * @deprecated By the parent
      */
     @Override
     @Deprecated
@@ -166,14 +186,14 @@ public class ActiveConnection implements Closeable
     {
         super.finalize();
 
-        if (getSocket() != null && !getSocket().isClosed()) {
+        if (!getSocket().isClosed()) {
             System.out.println("Connections should be closed before their references are being destroyed");
             getSocket().close();
         }
     }
 
     /**
-     * @return the address that the socket is bound to.
+     * @return The address that the socket is bound to.
      */
     public InetAddress getAddress()
     {
@@ -181,7 +201,7 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * @return the limit for internal caching when reading into the RAM.
+     * @return The limit for internal caching when reading into the heap.
      */
     public int getInternalCacheLimit()
     {
@@ -205,7 +225,7 @@ public class ActiveConnection implements Closeable
     /**
      * Get the protocol version of this implementation.
      *
-     * @return the protocol version.
+     * @return The protocol version.
      */
     public static int getProtocolVersion()
     {
@@ -213,9 +233,9 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Returns the remote protocol version that becomes available after the first interaction.
+     * Returns the protocol version of the remote. This becomes available after the first interaction.
      *
-     * @return the remote protocol version.
+     * @return The remote protocol version.
      */
     public int getProtocolVersionOfRemote()
     {
@@ -223,9 +243,9 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * The socket that is used to communicate
+     * Get the socket instance that represents the remote.
      *
-     * @return Null if no socket was provided or the socket instance.
+     * @return The socket instance.
      */
     public Socket getSocket()
     {
@@ -268,6 +288,8 @@ public class ActiveConnection implements Closeable
                     exchangeSend(description.pendingExchange);
                     exchangeReceive();
                 }
+
+                description.pendingExchange = null;
                 break;
             default:
                 return;
@@ -276,6 +298,15 @@ public class ActiveConnection implements Closeable
         handleByteBreak(description, localSending);
     }
 
+    /**
+     * Read from the remote. This reads into the {@link Description#buffer} and returns the length of the bytes read.
+     * <p>
+     * This should be called after the {@link #readBegin()}.
+     *
+     * @param description The object representing the operation.
+     * @return The length of the bytes read.
+     * @throws IOException If an IO error occurs.
+     */
     public int read(Description description) throws IOException
     {
         byte[] buffer = description.buffer;
@@ -301,11 +332,38 @@ public class ActiveConnection implements Closeable
         return len;
     }
 
+    /**
+     * Prepare for an operation and retrieve the information about that.
+     *
+     * @return The object representing the operation.
+     * @throws IOException If an IO error occurs, {@link CancelledException} if it was requested by any parties.
+     * @see #readBegin(byte[])
+     */
     public Description readBegin() throws IOException
     {
         return readBegin(new byte[8096]);
     }
 
+    /**
+     * Prepare for an operation and retrieve the information about that.
+     * <p>
+     * This will receive the information from the remote and apply the needed values to the description object that
+     * is produced.
+     * <p>
+     * After this method, you can use the {@link #read(Description)} method to start reading bytes for this operation.
+     * <p>
+     * After the operation is finished, this will return -1 to indicate that it is done. This will not produce an
+     * error even if you keep reading.
+     * <p>
+     * You can use one of the {@link #receive} methods to read all the bytes at once if you don't need show progress
+     * information.
+     *
+     * @param buffer The buffer to write into. It shouldn't be too small (e.g., 1-8 bytes). For better compatibility,
+     *               use the {@link #readBegin()} that doesn't take this as an argument.
+     * @return The object representing the operation.
+     * @throws IOException If an IO error occurs, {@link CancelledException} if it was requested by any parties.
+     * @see #readBegin(byte[])
+     */
     public Description readBegin(byte[] buffer) throws IOException
     {
         Flags flags = new Flags(readFlags(buffer));
@@ -317,20 +375,38 @@ public class ActiveConnection implements Closeable
         return description;
     }
 
-    private int readByte() throws IOException
+    /**
+     * @return The read byte.
+     * @throws IOException If an IO error occurs.
+     */
+    protected int readByte() throws IOException
     {
         return getInputStreamPriv().read();
     }
 
+    /**
+     * Read the byte break value.
+     *
+     * @return The read byte break value.
+     * @throws IOException If an IO error occurs.
+     */
     protected ByteBreak readByteBreak() throws IOException
     {
         return ByteBreak.from(readByte());
     }
 
+    /**
+     * Read the exact length of data. This will not return unless it reads the data that is the given length long.
+     *
+     * @param buffer To read into.
+     * @param length The length of the data to read.
+     * @throws IOException If an IO error occurs.
+     * @see #readExactIntoBuffer(byte[], int)
+     */
     protected void readExact(byte[] buffer, int length) throws IOException
     {
         if (length < 1 || length > buffer.length)
-            throw new IndexOutOfBoundsException("length cannot be a negative value, or be larger than the buffer.");
+            throw new IndexOutOfBoundsException("Length cannot be a negative value, or larger than the buffer.");
 
         int read = 0;
         int len;
@@ -342,37 +418,108 @@ public class ActiveConnection implements Closeable
             throw new IOException("Target closed connection before reading as many data.");
     }
 
+    /**
+     * This will read the exact length of data from the remote and encapsulate it in {@link ByteBuffer} wrapper.
+     * Similar to {@link #readExact(byte[], int)}, this will not return unless it reads that much of data.
+     *
+     * @param buffer To read into.
+     * @param length The length of the data to read.
+     * @return The byte buffer object that represents the value.
+     * @throws IOException If an IO occurs.
+     * @see #readExact(byte[], int)
+     */
     protected ByteBuffer readExactIntoBuffer(byte[] buffer, int length) throws IOException
     {
         readExact(buffer, length);
         return ByteBuffer.wrap(buffer, 0, length);
     }
 
+    /**
+     * Read the flags value which will then be encapsulated by {@link Flags} to analyze the state of the remote.
+     *
+     * @param buffer To read into.
+     * @return The read flags value in the long integer form.
+     * @throws IOException If an IO error occurs.
+     */
     protected long readFlags(byte[] buffer) throws IOException
     {
         return readLong(buffer);
     }
 
+    /**
+     * Read integer from the remote.
+     *
+     * @param buffer The read into.
+     * @return The read integer.
+     * @throws IOException If an IO error occurs.
+     */
     protected int readInteger(byte[] buffer) throws IOException
     {
         return readExactIntoBuffer(buffer, Integer.BYTES).getInt();
     }
 
+    /**
+     * Read long integer from the remote.
+     *
+     * @param buffer To read into.
+     * @return The read long integer.
+     * @throws IOException If an IO error occurs.
+     */
     protected long readLong(byte[] buffer) throws IOException
     {
         return readExactIntoBuffer(buffer, Long.BYTES).getLong();
     }
 
+    /**
+     * Read size from the remote.
+     *
+     * @param buffer To read into.
+     * @return The read size that is in long integer format.
+     * @throws IOException If an IO error occurs.
+     */
     protected long readSize(byte[] buffer) throws IOException
     {
         return readLong(buffer);
     }
 
+    /**
+     * Receive a response from the remote that is usually small in size as this will not be saved to anywhere. This
+     * encapsulates the read data and its state in a {@link Response} instance.
+     * <p>
+     * This best use case for this is the {@link #reply(String)} method which writes a string.
+     * <p>
+     * If you are going to receive a large data consider using a {@link #receive} method which takes an
+     * {@link OutputStream} as an argument.
+     *
+     * The methods that referred to here
+     *
+     * @return The response object that represents the reply of the remote.
+     * @throws IOException If an IO error occurs.
+     * @see #receive(OutputStream)
+     * @see #receive(OutputStream, int)
+     * @see #reply(String)
+     * @see #replyInChunks(long, InputStream)
+     * @see #replyWithFixedLength(long, InputStream, long)
+     * @see #readBegin()
+     * @see #read(Description)
+     * @see #writeBegin(long, long)
+     * @see #write(Description, byte[])
+     * @see #write(Description, int, int)
+     * @see #
+     */
     public Response receive() throws IOException
     {
         return receive(new ByteArrayOutputStream(), getInternalCacheLimit());
     }
 
+    /**
+     * Receive from the remote into the given stream.
+     *
+     * @param outputStream To write into.
+     * @return The response that is received.
+     * @throws IOException When a socket IO error occurs, or when the max length for the data readable is exceeded.
+     * @see #receive()
+     */
     public Response receive(OutputStream outputStream) throws IOException
     {
         return receive(outputStream, CoolSocket.LENGTH_UNSPECIFIED);
@@ -381,12 +528,11 @@ public class ActiveConnection implements Closeable
     /**
      * Receive from the remote into the given stream.
      *
-     * @param outputStream to write into.
-     * @param maxLength    that can be read into the output stream. '-1' will mean no limit.
+     * @param outputStream To write into.
+     * @param maxLength    That can be read into the output stream. '-1' will mean no limit.
      * @return The response that is received.
-     * @throws IOException   when a socket IO error occurs, or when the max length for the data readable is exceeded.
-     * @throws JSONException when the JSON parsing error occurs.
-     * @see #reply(String)
+     * @throws IOException When a socket IO error occurs, or when the max length for the data readable is exceeded.
+     * @see #receive()
      */
     public synchronized Response receive(OutputStream outputStream, int maxLength) throws IOException
     {
@@ -433,7 +579,7 @@ public class ActiveConnection implements Closeable
      * Set the limit for maximum read from remote when the output stream self provided. This will not be used for
      * custom output streams.
      *
-     * @param internalCacheLimit the limit in bytes.
+     * @param internalCacheLimit The limit in bytes.
      */
     public void setInternalCacheLimit(int internalCacheLimit)
     {
@@ -489,13 +635,13 @@ public class ActiveConnection implements Closeable
      * {@link #write(Description, byte[], int, int)} to begin writing bytes or end the part with the
      * {@link #writeEnd(Description)} method call.
      *
-     * @param flags       the feature flags set for this part. It sets how the remote should handle the data it
-     * @param totalLength the total length of the data that will be sent. Use {@link CoolSocket#LENGTH_UNSPECIFIED} when
+     * @param flags       The feature flags set for this part. It sets how the remote should handle the data it
+     * @param totalLength The total length of the data that will be sent. Use {@link CoolSocket#LENGTH_UNSPECIFIED} when
      *                    the length is unknown at the moment. Doing so will make this transmission process
      *                    {@link Flags#FLAG_DATA_CHUNKED} where the data length will only be visible as much as
      *                    we read from the source.
-     * @return the description object for this write operation.
-     * @throws IOException when socket related IO error occurs.
+     * @return The description object for this write operation.
+     * @throws IOException When socket related IO error occurs.
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {

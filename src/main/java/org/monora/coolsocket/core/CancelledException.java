@@ -12,8 +12,8 @@ public class CancelledException extends IOException
     /**
      * Create a new exception instance.
      *
-     * @param message         the explanation for this error.
-     * @param remoteCancelled true if this were requested by the remote, or false if it were requested by you.
+     * @param message         The explanation for this error.
+     * @param remoteCancelled True if this were requested by the remote, or false if it were requested by you.
      */
     public CancelledException(String message, boolean remoteCancelled)
     {

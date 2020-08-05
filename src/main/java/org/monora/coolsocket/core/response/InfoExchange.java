@@ -27,4 +27,12 @@ public enum InfoExchange
     {
         this.maxLength = maxLength;
     }
+
+    public static InfoExchange from(int ordinal) {
+        InfoExchange[] values = values();
+        if (ordinal < 0 || ordinal >= values.length)
+            return InfoExchange.Dummy;
+
+        return values[ordinal];
+    }
 }

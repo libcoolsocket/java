@@ -36,6 +36,12 @@ public enum ByteBreak
      */
     Cancel;
 
+    /**
+     * Find the matching {@link ByteBreak} value using the given ordinal.
+     *
+     * @param ordinal For the expected byte break object.
+     * @return The found byte break object, or the default {@link ByteBreak#None}.
+     */
     public static ByteBreak from(int ordinal)
     {
         ByteBreak[] values = values();

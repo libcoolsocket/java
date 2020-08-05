@@ -39,10 +39,10 @@ public class Response
     /**
      * Creates a new Response instance.
      *
-     * @param remote where the remote is located at.
-     * @param flags  the feature flags for this response.
-     * @param length the total length of the data.
-     * @param data   the byte data stored in RAM.
+     * @param remote Where the remote is located at.
+     * @param flags  The feature flags for this response.
+     * @param length The total length of the data.
+     * @param data   The byte data stored in the heap.
      */
     public Response(SocketAddress remote, long flags, long length, ByteArrayOutputStream data)
     {
@@ -55,7 +55,7 @@ public class Response
     /**
      * Check whether the data contains actual data.
      *
-     * @return true if the data is actually an object.
+     * @return True if the data is actually an object.
      */
     public boolean containsData()
     {
@@ -70,9 +70,9 @@ public class Response
     /**
      * Get the data as a JSON object.
      *
-     * @param charsetName the name of the charset to use to decode the data.
-     * @return the encapsulated JSON data.
-     * @throws UnsupportedEncodingException if the supplied charset name is not available.
+     * @param charsetName The name of the charset to use to decode the data.
+     * @return The encapsulated JSON data.
+     * @throws UnsupportedEncodingException If the supplied charset name is not available.
      */
     public JSONObject getAsJson(String charsetName) throws UnsupportedEncodingException
     {
@@ -82,9 +82,9 @@ public class Response
     /**
      * Return the data as a string.
      *
-     * @param charsetName the name of the charset to use to decode the data.
-     * @return the string representation of the {@link #data}.
-     * @throws UnsupportedEncodingException if the supplied charset name is not available.
+     * @param charsetName The name of the charset to use to decode the data.
+     * @return The string representation of the {@link #data}.
+     * @throws UnsupportedEncodingException If the supplied charset name is not available.
      * @see #getAsString()
      */
     public String getAsString(String charsetName) throws UnsupportedEncodingException
@@ -95,7 +95,7 @@ public class Response
     /**
      * Get the data as a string.
      *
-     * @return the string representation of the {@link #data}.
+     * @return The string representation of the {@link #data}.
      * @see #getAsString(String)
      */
     public String getAsString()

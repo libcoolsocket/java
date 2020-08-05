@@ -16,8 +16,8 @@ public interface ConnectionManager
     /**
      * Handle a client connection assigning it to a thread that will execute it asynchronously.
      *
-     * @param coolSocket the calling CoolSocket instance.
-     * @param activeConnection to handle.
+     * @param coolSocket The calling CoolSocket instance.
+     * @param activeConnection To handle.
      */
     void handleClient(CoolSocket coolSocket, ActiveConnection activeConnection);
 
@@ -25,15 +25,15 @@ public interface ConnectionManager
      * Returns the list of active connections that are still ongoing. This list does not hold the connections that are
      * closed.
      *
-     * @return a copy list of active connections that are still alive.
+     * @return A copy list of active connections that are still alive.
      */
     List<ActiveConnection> getActiveConnectionList();
 
     /**
      * Counts the total connection of a client to the CoolSocket server.
      *
-     * @param address client address.
-     * @return total number of connections.
+     * @param address Client address.
+     * @return Total number of connections.
      */
     default int getConnectionCountByAddress(InetAddress address)
     {

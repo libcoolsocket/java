@@ -34,7 +34,7 @@ public abstract class CoolSocket
     /**
      * Create an instance that will use the default config factory.
      *
-     * @param port that the server socket will run on. Use "0" to randomly assign to an available port.
+     * @param port That the server socket will run on. Use "0" to randomly assign to an available port.
      */
     public CoolSocket(int port)
     {
@@ -44,7 +44,7 @@ public abstract class CoolSocket
     /**
      * Create an instance that will use the default config factory.
      *
-     * @param address that the server will be assigned to.
+     * @param address That the server will be assigned to.
      */
     public CoolSocket(SocketAddress address)
     {
@@ -54,7 +54,7 @@ public abstract class CoolSocket
     /**
      * Create an instance with its own config factory.
      *
-     * @param configFactory that will produce ServerSocket, and configure sockets.
+     * @param configFactory That will produce ServerSocket, and configure sockets.
      */
     public CoolSocket(ConfigFactory configFactory)
     {
@@ -71,7 +71,7 @@ public abstract class CoolSocket
     /**
      * Get the config factory instance that loads settings on to sockets.
      *
-     * @return the config factory instance.
+     * @return The config factory instance.
      */
     protected ConfigFactory getConfigFactory()
     {
@@ -81,7 +81,7 @@ public abstract class CoolSocket
     /**
      * Get the connection manager that handles the threads for clients.
      *
-     * @return the connection manager instance.
+     * @return The connection manager instance.
      */
     protected ConnectionManager getConnectionManager()
     {
@@ -95,7 +95,7 @@ public abstract class CoolSocket
      * this will return '0' as expected, however, if the server has been started, then, the returned value will be the
      * port that the server is running on.
      *
-     * @return the port that the server is running on.
+     * @return The port that the server is running on.
      */
     public int getLocalPort()
     {
@@ -107,7 +107,7 @@ public abstract class CoolSocket
      * The session that is still accepting requests and hasn't been interrupted or still waiting to exit. This will
      * return null if there is no active session.
      *
-     * @return the session that runs the server process.
+     * @return The session that runs the server process.
      */
     public Session getSession()
     {
@@ -115,7 +115,7 @@ public abstract class CoolSocket
     }
 
     /**
-     * @return the server executor factory instance which defaults when there is none.
+     * @return The server executor factory instance which defaults when there is none.
      */
     public ServerExecutorFactory getServerExecutorFactory()
     {
@@ -128,7 +128,7 @@ public abstract class CoolSocket
     /**
      * Check whether there is an active session.
      *
-     * @return true when there is a session and hasn't exited.
+     * @return True when there is a session and hasn't exited.
      */
     public boolean inSession()
     {
@@ -138,7 +138,7 @@ public abstract class CoolSocket
     /**
      * Check whether the server is listening for connections.
      *
-     * @return true if the server is listening, or false if otherwise.
+     * @return True if the server is listening, or false if otherwise.
      */
     public boolean isListening()
     {
@@ -149,7 +149,7 @@ public abstract class CoolSocket
     /**
      * Get the logger for this CoolSocket instance.
      *
-     * @return the logger instance.
+     * @return The logger instance.
      */
     public Logger getLogger()
     {
@@ -159,8 +159,8 @@ public abstract class CoolSocket
     /**
      * Handle the request from a client on a different thread.
      *
-     * @param socket the socket representing the client.
-     * @throws SocketException if configuring the socket with the config factory fails.
+     * @param socket The socket representing the client.
+     * @throws SocketException If configuring the socket with the config factory fails.
      */
     public void respondRequest(final Socket socket) throws SocketException
     {
@@ -171,9 +171,9 @@ public abstract class CoolSocket
     /**
      * Restart the server without changing anything
      *
-     * @param timeout time to wait before giving up.
-     * @throws IOException          when something related socket set up goes wrong (e.g., a bind exception).
-     * @throws InterruptedException if the calling thread exits while waiting for the lock to release.
+     * @param timeout Time to wait before giving up.
+     * @throws IOException          When something related socket set up goes wrong (e.g., a bind exception).
+     * @throws InterruptedException If the calling thread exits while waiting for the lock to release.
      * @see #start()
      * @see #start(long)
      * @see #stop()
@@ -191,8 +191,8 @@ public abstract class CoolSocket
     /**
      * Start listening for connections.
      *
-     * @return the session which represents the listening session.
-     * @throws IOException if an unrecoverable error occurs.
+     * @return The session which represents the listening session.
+     * @throws IOException If an unrecoverable error occurs.
      * @see #start()
      * @see #start(long)
      */
@@ -214,8 +214,8 @@ public abstract class CoolSocket
      * Start the server session and ensure it has started when returned, meaning it will block the calling thread until
      * the server starts. For a nonblocking start, use {@link #startAsynchronously()}.
      *
-     * @throws IOException          if an error occurs during the set-up process of the server socket.
-     * @throws InterruptedException if the calling thread goes into the interrupted state.
+     * @throws IOException          If an error occurs during the set-up process of the server socket.
+     * @throws InterruptedException If the calling thread goes into the interrupted state.
      * @see #start(long)
      * @see #startAsynchronously()
      */
@@ -228,10 +228,10 @@ public abstract class CoolSocket
      * Start the server session and ensure it has started in the given timespan or throw an {@link IOException} saying
      * that the server could not start listening.
      *
-     * @param timeout time in milliseconds to wait before giving up with an error.
-     * @throws IOException          if something related to the set-up process of the server socket goes wrong or the
+     * @param timeout Time in milliseconds to wait before giving up with an error.
+     * @throws IOException          If something related to the set-up process of the server socket goes wrong or the
      *                              server socket cannot start listening in the given time.
-     * @throws InterruptedException if the calling thread goes in to the interrupted state.
+     * @throws InterruptedException If the calling thread goes in to the interrupted state.
      */
     public void start(long timeout) throws IOException, InterruptedException
     {
@@ -246,7 +246,7 @@ public abstract class CoolSocket
      * session, and it will throw {@link IllegalStateException} if you do so. Ensure you are invoking this when
      * {@link #isListening()} returns true.
      *
-     * @return the session object representing the active listening session.
+     * @return The session object representing the active listening session.
      * @see #stop()
      * @see #stop(long)
      */
@@ -269,7 +269,7 @@ public abstract class CoolSocket
      * This shouldn't be called when there is no session and will throw an {@link IllegalStateException} error if you
      * do so.
      *
-     * @throws InterruptedException if the calling thread goes into interrupted state.
+     * @throws InterruptedException If the calling thread goes into interrupted state.
      * @see #stop(long)
      * @see #stopAsynchronously()
      */
@@ -285,9 +285,9 @@ public abstract class CoolSocket
      * {@link #stopAsynchronously()} for an asynchronous stop operation. This will throw an {@link IOException} if the
      * server fails to stop in time.
      *
-     * @param timeout time to wait in millisecond
-     * @throws InterruptedException if the calling thread goes into interrupted state.
-     * @throws IOException          if an IO error occurs, or the session fails to close.
+     * @param timeout Time to wait in millisecond
+     * @throws InterruptedException If the calling thread goes into interrupted state.
+     * @throws IOException          If an IO error occurs, or the session fails to close.
      * @see #stop()
      * @see #stopAsynchronously()
      */
@@ -317,8 +317,8 @@ public abstract class CoolSocket
          * after the run() method of this class exits. This class assigns itself to the CoolSocket instance that owns
          * it whenever a new session starts and erases itself from it whenever it exits.
          *
-         * @param serverSocket   accepting the connections for this server session.
-         * @param serverExecutor runs the server with the given data objects in this instance of session.
+         * @param serverSocket   Accepting the connections for this server session.
+         * @param serverExecutor Runs the server with the given data objects in this instance of session.
          */
         public Session(ServerSocket serverSocket, ServerExecutor serverExecutor)
         {

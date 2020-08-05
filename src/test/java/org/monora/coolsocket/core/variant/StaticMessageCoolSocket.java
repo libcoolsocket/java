@@ -45,7 +45,7 @@ public class StaticMessageCoolSocket extends CoolSocket
     /**
      * Set the message to be delivered to the clients.
      *
-     * @param message to be delivered.
+     * @param message To be delivered.
      */
     public void setStaticMessage(String message)
     {
