@@ -7,8 +7,8 @@ requests to stop an operation can be processed.
 Here is a quick example:
 
 ```java
-import com.genonbeta.coolsocket.CoolSocket;
-import com.genonbeta.coolsocket.ActiveConnection;
+import CoolSocket;
+import ActiveConnection;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
