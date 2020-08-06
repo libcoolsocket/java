@@ -24,8 +24,8 @@ public class CommandExecutionTest
             @Override
             public void onConnected(ActiveConnection activeConnection)
             {
-                activeConnection.cancel();
                 try {
+                    activeConnection.cancel();
                     activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
                 } catch (CancelledException ignored) {
                 } catch (IOException e) {
@@ -51,8 +51,8 @@ public class CommandExecutionTest
             @Override
             public void onConnected(ActiveConnection activeConnection)
             {
-                activeConnection.cancel();
                 try {
+                    activeConnection.cancel();
                     activeConnection.readBegin();
                 } catch (CancelledException ignored) {
                 } catch (IOException e) {
@@ -80,8 +80,8 @@ public class CommandExecutionTest
             @Override
             public void onConnected(ActiveConnection activeConnection)
             {
-                activeConnection.cancel();
                 try {
+                    activeConnection.cancel();
                     activeConnection.readBegin();
                 } catch (CancelledException ignored) {
                 } catch (IOException e) {
@@ -184,9 +184,8 @@ public class CommandExecutionTest
             @Override
             public void onConnected(ActiveConnection activeConnection)
             {
-                activeConnection.closeSafely();
-
                 try {
+                    activeConnection.closeSafely();
                     activeConnection.reply(message);
                 } catch (ClosedException ignored) {
                 } catch (IOException e) {
@@ -213,9 +212,8 @@ public class CommandExecutionTest
             @Override
             public void onConnected(ActiveConnection activeConnection)
             {
-                activeConnection.closeSafely();
-
                 try {
+                    activeConnection.closeSafely();
                     activeConnection.reply(message);
                 } catch (ClosedException ignored) {
                 } catch (IOException e) {
@@ -244,11 +242,9 @@ public class CommandExecutionTest
             @Override
             public void onConnected(ActiveConnection activeConnection)
             {
-                activeConnection.closeSafely();
-
                 try {
+                    activeConnection.closeSafely();
                     activeConnection.reply(message);
-
                 } catch (ClosedException ignored) {
                     try {
                         activeConnection.receive();

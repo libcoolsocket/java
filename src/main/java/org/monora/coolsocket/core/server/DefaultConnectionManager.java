@@ -1,7 +1,7 @@
 package org.monora.coolsocket.core.server;
 
-import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.CoolSocket;
+import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -16,18 +16,38 @@ public class DefaultConnectionManager implements ConnectionManager
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
+    private boolean waitForExit = true;
+
+    private int closingContract = CLOSING_CONTRACT_DO_NOTHING;
+
     @Override
     public void closeAll()
     {
         if (connectionList.size() == 0)
             return;
 
-        List<ActiveConnection> connections = new ArrayList<>(connectionList);
-        for (ActiveConnection connection : connections)
-            try {
-                connection.close();
-            } catch (IOException ignored) {
+        int contract = closingContract;
+        boolean wait = waitForExit;
+
+        synchronized (connectionList) {
+            for (ActiveConnection connection : connectionList) {
+                try {
+                    switch (contract) {
+                        case CLOSING_CONTRACT_DO_NOTHING:
+                            break;
+                        case CLOSING_CONTRACT_CANCEL:
+                            connection.cancel();
+                            break;
+                        case CLOSING_CONTRACT_CLOSE_SAFELY:
+                            connection.closeSafely();
+                        case CLOSING_CONTRACT_CLOSE_IMMEDIATELY:
+                        default:
+                            connection.close();
+                    }
+                } catch (IOException ignored) {
+                }
             }
+        }
     }
 
     @Override
@@ -59,5 +79,12 @@ public class DefaultConnectionManager implements ConnectionManager
     public List<ActiveConnection> getActiveConnectionList()
     {
         return new ArrayList<>(connectionList);
+    }
+
+    @Override
+    public void setClosingContract(boolean wait, int closingContract)
+    {
+        this.waitForExit = wait;
+        this.closingContract = closingContract;
     }
 }

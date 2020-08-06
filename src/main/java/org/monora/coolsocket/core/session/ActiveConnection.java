@@ -100,10 +100,13 @@ public class ActiveConnection implements Closeable
      * <p>
      * If you want to close the connection immediately, use {@link #close()}.
      *
+     * @throws IOException If the socket is already closed.
      * @see #close()
      */
-    public void closeSafely()
+    public void closeSafely() throws IOException
     {
+        if (getSocket().isClosed())
+            throw new IOException("Socket is already closed.");
         closeRequested = true;
     }
 
@@ -112,9 +115,13 @@ public class ActiveConnection implements Closeable
      * <p>
      * The cancelled state will be cleared after {@link CancelledException} is thrown or {@link #cancelled()} is
      * invoked.
+     *
+     * @throws IOException If the socket is closed.
      */
-    public void cancel()
+    public void cancel() throws IOException
     {
+        if (getSocket().isClosed())
+            throw new IOException("Socket is closed.");
         cancelled = true;
     }
 

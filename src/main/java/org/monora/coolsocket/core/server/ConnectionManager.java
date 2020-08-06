@@ -1,7 +1,7 @@
 package org.monora.coolsocket.core.server;
 
-import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.CoolSocket;
+import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.net.InetAddress;
 import java.util.List;
@@ -11,6 +11,28 @@ import java.util.List;
  */
 public interface ConnectionManager
 {
+    /**
+     * Close the connections as soon as {@link #closeAll()} is invoked.
+     */
+    int CLOSING_CONTRACT_CLOSE_IMMEDIATELY = 1;
+
+    /**
+     * Close using {@link ActiveConnection#closeSafely()} which will inform the remote and close the connection.
+     */
+    int CLOSING_CONTRACT_CLOSE_SAFELY = 2;
+
+    /**
+     * Cancel the ongoing operations informing the remote about it using {@link ActiveConnection#cancel()}. This doesn't
+     * guarantee that the connections will be closed. If both sides of a connection want, the existing connection can
+     * still be maintained after the cancel request is handled.
+     */
+    int CLOSING_CONTRACT_CANCEL = 4;
+
+    /**
+     * Do nothing about the connections to the server. They can exit whenever they want.
+     */
+    int CLOSING_CONTRACT_DO_NOTHING = 8;
+
     /**
      * Force close all the active connections.
      */
@@ -48,4 +70,19 @@ public interface ConnectionManager
 
         return returnObject;
     }
+
+    /**
+     * Set the closing contract for this connection manager.
+     * <p>
+     * This will be effective for the existing connections and the upcoming ones.
+     *
+     * @param wait            True will mean {@link #closeAll()} will not return until all the connections stop.
+     * @param closingContract The closing contract which will set how the manager will behave when {@link #closeAll()}
+     *                        is invoked.
+     * @see #CLOSING_CONTRACT_CLOSE_IMMEDIATELY
+     * @see #CLOSING_CONTRACT_CLOSE_SAFELY
+     * @see #CLOSING_CONTRACT_CANCEL
+     * @see #CLOSING_CONTRACT_DO_NOTHING
+     */
+    void setClosingContract(boolean wait, int closingContract);
 }

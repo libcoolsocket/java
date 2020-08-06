@@ -266,6 +266,7 @@ public abstract class CoolSocket
             throw new IllegalStateException("The server is not running or hasn't started yet. Make sure this call" +
                     " happens during a valid session's lifecycle.");
 
+        getConnectionManager().closeAll();
         Session session = getSession();
         session.interrupt();
         return session;
