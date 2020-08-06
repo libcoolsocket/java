@@ -2,7 +2,8 @@ package org.monora.coolsocket.core;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.monora.coolsocket.core.response.SizeExceededException;
+import org.monora.coolsocket.core.response.SizeMismatchException;
+import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -65,7 +66,7 @@ public class DataTransactionTest
         coolSocket.stop();
     }
 
-    @Test(expected = SizeExceededException.class)
+    @Test(expected = SizeMismatchException.class)
     public void exceedingInternalCacheGivesError() throws IOException, InterruptedException
     {
         CoolSocket coolSocket = new CoolSocket(PORT)

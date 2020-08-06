@@ -32,6 +32,14 @@ public enum ByteBreak
     InfoExchange,
 
     /**
+     * Close the connection
+     *
+     * When this byte break appears the next read/write operation will certainly produce an error if you don't quit
+     * the session.
+     */
+    Close,
+
+    /**
      * Cancel the current operation.
      */
     Cancel;

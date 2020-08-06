@@ -1,6 +1,7 @@
-package org.monora.coolsocket.core;
+package org.monora.coolsocket.core.session;
 
 import org.json.JSONObject;
+import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.config.Config;
 import org.monora.coolsocket.core.response.*;
 
@@ -29,6 +30,8 @@ public class ActiveConnection implements Closeable
     private int protocolVersion;
 
     private boolean cancelled;
+
+    private boolean closeRequested;
 
     /**
      * Create an instance with a socket connection to a CoolSocket server.
@@ -62,13 +65,46 @@ public class ActiveConnection implements Closeable
 
     /**
      * Close the socket, and thus this connection instance.
+     * <p>
+     * This will not inform the remote. If you want the connection to be closed when both sides are ready, then, use
+     * {@link #closeSafely()}.
      *
      * @throws IOException If IO error occurs, or the socket is already closed.
+     * @see #closeSafely()
      */
     @Override
     public void close() throws IOException
     {
         socket.close();
+    }
+
+    /**
+     * Check whether there is a request on closing the connection.
+     * <p>
+     * Once requested, this will lead the closing of the connection. This should not be handled manually. The usual
+     * workflow should be carried out so that the remote will also be ready when the connection is finally closed.
+     *
+     * @return True if there is a request to close the connection. Which side requested it can be checked using the
+     * {@link ClosedException#remoteRequested} field.
+     */
+    public boolean closeRequested()
+    {
+        return closeRequested;
+    }
+
+    /**
+     * Close the connection with mutual agreement.
+     * <p>
+     * The connection will be closed when both sides is ready, in other words, the remote will know that this was
+     * requested by you.
+     * <p>
+     * If you want to close the connection immediately, use {@link #close()}.
+     *
+     * @see #close()
+     */
+    public void closeSafely()
+    {
+        closeRequested = true;
     }
 
     /**
@@ -147,17 +183,17 @@ public class ActiveConnection implements Closeable
         int featureId = readInteger(buffer);
         InfoExchange infoExchange = InfoExchange.from(featureId);
         int maxLength = infoExchange.maxLength;
-        int firstInteger = readInteger(buffer);
-        if (firstInteger > maxLength)
-            throw new SizeExceededException("The remote reported size for " + infoExchange + " info cannot be bigger " +
-                    "than " + maxLength + ". The remote reported it as " + firstInteger);
+        int length = readInteger(buffer);
+        if (length > maxLength)
+            throw new SizeExceededException("The remote reported size for " + infoExchange + "is too large.",
+                    maxLength, length);
 
         switch (infoExchange) {
             case Dummy:
-                readExactIntoBuffer(new byte[firstInteger], firstInteger);
+                readExactIntoBuffer(new byte[length], length);
                 break;
             case ProtocolVersion:
-                protocolVersion = firstInteger;
+                protocolVersion = length;
         }
 
         return infoExchange;
@@ -271,7 +307,9 @@ public class ActiveConnection implements Closeable
 
     public void handleByteBreak(Description description, boolean localSending) throws IOException
     {
-        if (cancelled())
+        if (closeRequested())
+            description.byteBreakLocal = ByteBreak.Close;
+        else if (cancelled())
             description.byteBreakLocal = ByteBreak.Cancel;
         else if (protocolVersion == 0) {
             description.byteBreakLocal = ByteBreak.InfoExchange;
@@ -287,7 +325,15 @@ public class ActiveConnection implements Closeable
             writeByteBreak(description.byteBreakLocal);
         }
 
-        if (description.byteBreakLocal.equals(ByteBreak.Cancel) || description.byteBreakRemote.equals(ByteBreak.Cancel))
+        if (description.byteBreakLocal.equals(ByteBreak.Close) || description.byteBreakRemote.equals(ByteBreak.Close)) {
+            try {
+                close();
+            } catch (Exception ignored) {
+            }
+            throw new ClosedException("The connection just closed as one of the sides wanted it.",
+                    description.byteBreakRemote.equals(ByteBreak.Close));
+        } else if (description.byteBreakLocal.equals(ByteBreak.Cancel)
+                || description.byteBreakRemote.equals(ByteBreak.Cancel))
             throw new CancelledException("This operation has been cancelled.", description.byteBreakRemote.equals(
                     ByteBreak.Cancel));
 
@@ -428,7 +474,7 @@ public class ActiveConnection implements Closeable
             read += len;
 
         if (read < length)
-            throw new IOException("Target closed connection before reading as many data.");
+            throw new SizeFellBehindException("Target closed connection before reading as many data.", length, read);
     }
 
     /**
@@ -567,7 +613,8 @@ public class ActiveConnection implements Closeable
             len = read(description);
 
             if (maxLength > 0 && description.handedLength > maxLength)
-                throw new SizeExceededException("The length of the data exceeds the maximum length.");
+                throw new SizeExceededException("The length of the data exceeds the maximum length.", maxLength,
+                        description.handedLength);
 
             if (len > 0)
                 outputStream.write(description.buffer, 0, len);
@@ -597,7 +644,7 @@ public class ActiveConnection implements Closeable
      *
      * @param string To send.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
-     * @see #reply(int, byte[])
+     * @see #reply(long, byte[])
      */
     public void reply(String string) throws IOException
     {
@@ -612,9 +659,9 @@ public class ActiveConnection implements Closeable
      * @param flags The custom {@link Flags} for this operation.
      * @param bytes To read from.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
-     * @see #reply(int, byte[], int, int)
+     * @see #reply(long, byte[], int, int)
      */
-    public void reply(int flags, byte[] bytes) throws IOException
+    public void reply(long flags, byte[] bytes) throws IOException
     {
         reply(0, bytes, 0, bytes.length);
     }
@@ -630,7 +677,7 @@ public class ActiveConnection implements Closeable
      * @param length The length of the bytes to read and send.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public void reply(int flags, byte[] bytes, int offset, int length) throws IOException
+    public void reply(long flags, byte[] bytes, int offset, int length) throws IOException
     {
         Description description = writeBegin(0, bytes.length);
         write(description, bytes, offset, length);
@@ -766,7 +813,8 @@ public class ActiveConnection implements Closeable
         if (description.flags.chunked())
             description.totalLength += size;
         else if (description.handedLength > description.totalLength)
-            throw new SizeExceededException("The size of the data exceeds that length notified to the remote.");
+            throw new SizeExceededException("The size of the data exceeds that length notified to the remote.",
+                    description.totalLength, description.handedLength);
 
         handleByteBreak(description, true);
         writeSize(size);

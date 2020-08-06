@@ -1,7 +1,7 @@
 package org.monora.coolsocket.core.response;
 
 import org.json.JSONObject;
-import org.monora.coolsocket.core.ActiveConnection;
+import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;

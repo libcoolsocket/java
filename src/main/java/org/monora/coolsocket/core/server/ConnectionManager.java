@@ -1,6 +1,6 @@
 package org.monora.coolsocket.core.server;
 
-import org.monora.coolsocket.core.ActiveConnection;
+import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.CoolSocket;
 
 import java.net.InetAddress;

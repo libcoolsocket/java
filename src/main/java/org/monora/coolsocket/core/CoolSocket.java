@@ -3,6 +3,7 @@ package org.monora.coolsocket.core;
 import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.config.DefaultConfigFactory;
 import org.monora.coolsocket.core.server.*;
+import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
 import java.net.*;
@@ -10,7 +11,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * CoolSocket is a TCP socket implementation for various platforms aiming to be fast, easy to work on.
+ * CoolSocket is a bidirectional TCP socket communication layer for various platforms aiming to be fast, easy to work
+ * on.
+ * <p>
+ * Once started with internal configs, it is not possible change the values (e.g., port, timeout) unless you have access
+ * to the config factory instance.
  */
 public abstract class CoolSocket
 {
