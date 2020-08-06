@@ -33,7 +33,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0)) {
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
             activeConnection.readBegin();
         } finally {
             coolSocket.stop();
@@ -60,7 +60,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0)) {
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
             activeConnection.writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
         } finally {
             coolSocket.stop();
@@ -95,7 +95,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
 
         try {
             activeConnection.writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
@@ -119,7 +119,7 @@ public class CommandExecutionTest
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0)) {
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
             activeConnection.receive();
 
             Assert.assertEquals("The protocol version should be the same.",

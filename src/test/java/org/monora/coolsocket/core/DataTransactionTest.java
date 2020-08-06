@@ -1,8 +1,8 @@
 package org.monora.coolsocket.core;
 
-import org.monora.coolsocket.core.response.SizeExceededException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.monora.coolsocket.core.response.SizeExceededException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -39,7 +39,7 @@ public class DataTransactionTest
 
                     // do the above with shortcuts
                     inputStream.reset();
-                    activeConnection.replyInChunks(0, inputStream);
+                    activeConnection.reply(0, inputStream);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -49,7 +49,7 @@ public class DataTransactionTest
         coolSocket.start();
 
         int len;
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         ActiveConnection.Description description = activeConnection.readBegin();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
@@ -85,7 +85,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         activeConnection.setInternalCacheLimit(100);
 
         try {
@@ -116,7 +116,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         activeConnection.setInternalCacheLimit(8196);
         activeConnection.receive();
         activeConnection.close();
@@ -139,7 +139,7 @@ public class DataTransactionTest
             public void onConnected(ActiveConnection activeConnection)
             {
                 try {
-                    activeConnection.replyWithFixedLength(0, inputStream, messageBytes.length);
+                    activeConnection.reply(0, inputStream, messageBytes.length);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -148,8 +148,41 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
+        activeConnection.close();
+        coolSocket.stop();
+    }
+
+    @Test
+    public void consumedInputStreamSendsZeroBytesTest() throws IOException, InterruptedException
+    {
+        final String message = "The quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
+                "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
+                "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\n";
+        final byte[] messageBytes = message.getBytes();
+        final InputStream inputStream = new ByteArrayInputStream(messageBytes);
+
+        CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    if (inputStream.skip(messageBytes.length) != messageBytes.length)
+                        throw new IOException("It did not skip bytes");
+                    activeConnection.reply(0, inputStream);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        Assert.assertEquals("The message length should be zero.", 0, activeConnection.receive().length);
+
         activeConnection.close();
         coolSocket.stop();
     }

@@ -1,7 +1,7 @@
 package org.monora.coolsocket.core.response;
 
-import org.monora.coolsocket.core.ActiveConnection;
 import org.json.JSONObject;
+import org.monora.coolsocket.core.ActiveConnection;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -64,7 +64,7 @@ public class Response
 
     public JSONObject getAsJson()
     {
-        return new JSONObject(data.toString());
+        return new JSONObject(getAsString());
     }
 
     /**
@@ -76,7 +76,7 @@ public class Response
      */
     public JSONObject getAsJson(String charsetName) throws UnsupportedEncodingException
     {
-        return new JSONObject(data.toString(charsetName));
+        return new JSONObject(getAsString(charsetName));
     }
 
     /**
@@ -89,7 +89,7 @@ public class Response
      */
     public String getAsString(String charsetName) throws UnsupportedEncodingException
     {
-        return data.toString(charsetName);
+        return data == null ? null : data.toString(charsetName);
     }
 
     /**
@@ -100,6 +100,6 @@ public class Response
      */
     public String getAsString()
     {
-        return data.toString();
+        return data == null ? null : data.toString();
     }
 }

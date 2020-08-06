@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.json.JSONObject;
 import org.monora.coolsocket.core.config.Config;
 import org.monora.coolsocket.core.response.*;
 
@@ -96,6 +97,20 @@ public class ActiveConnection implements Closeable
             return true;
         }
         return false;
+    }
+
+    /**
+     * Connects to a CoolSocket server.
+     * <p>
+     * The read timeout defaults to 0.
+     *
+     * @param socketAddress The server address to connection.
+     * @return The connection object representing an active connection.
+     * @throws IOException If connection fails for some reason.
+     */
+    public static ActiveConnection connect(SocketAddress socketAddress) throws IOException
+    {
+        return connect(socketAddress, 0);
     }
 
     /**
@@ -282,19 +297,15 @@ public class ActiveConnection implements Closeable
                 || description.byteBreakLocal.equals(ByteBreak.None))
             return;
 
-        switch (description.byteBreakLocal) {
-            case InfoExchange:
-                if (localSending)
-                    exchangeSend(exchangeReceive());
-                else {
-                    exchangeSend(description.pendingExchange);
-                    exchangeReceive();
-                }
+        if (description.byteBreakLocal == ByteBreak.InfoExchange) {
+            if (localSending)
+                exchangeSend(exchangeReceive());
+            else {
+                exchangeSend(description.pendingExchange);
+                exchangeReceive();
+            }
 
-                description.pendingExchange = null;
-                break;
-            default:
-                return;
+            description.pendingExchange = null;
         }
 
         handleByteBreak(description, localSending);
@@ -525,6 +536,9 @@ public class ActiveConnection implements Closeable
      * <p>
      * This is a complimentary method for other read and write methods. They can also write to this. See the referred
      * methods for other methods that are working together.
+     * <p>
+     * The data will be available at {@link Response#data} if the given output stream is instance of
+     * {@link ByteArrayOutputStream}.
      *
      * @param outputStream To write into.
      * @param maxLength    That can be read into the output stream. '-1' will mean no limit.
@@ -533,8 +547,8 @@ public class ActiveConnection implements Closeable
      * @see #receive(OutputStream)
      * @see #receive(OutputStream, int)
      * @see #reply(String)
-     * @see #replyInChunks(long, InputStream)
-     * @see #replyWithFixedLength(long, InputStream, long)
+     * @see #reply(long, InputStream)
+     * @see #reply(long, InputStream, long)
      * @see #readBegin()
      * @see #read(Description)
      * @see #writeBegin(long, long)
@@ -542,7 +556,7 @@ public class ActiveConnection implements Closeable
      * @see #write(Description, int, int)
      * @see #write(Description, byte[], int, int)
      * @see #writeEnd(Description)
-     * @see #writeAll(Description, InputStream)
+     * @see #write(Description, InputStream)
      */
     public synchronized Response receive(OutputStream outputStream, int maxLength) throws IOException
     {
@@ -564,17 +578,62 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Send the given string data to the remote as it is waiting to read.
+     * Send the give JSON data to the remote.
+     * <p>
+     * The given JSON object is first converted to a string and sent via the {@link #reply(String)}.
      *
-     * @param out To send.
+     * @param jsonObject To send.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
-     * @see #receive()
      */
-    public void reply(String out) throws IOException
+    public void reply(JSONObject jsonObject) throws IOException
     {
-        byte[] bytes = out.getBytes();
+        reply(jsonObject.toString());
+    }
+
+    /**
+     * Send the given string data to the remote.
+     * <p>
+     * The bytes are generated from the string.
+     *
+     * @param string To send.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @see #reply(int, byte[])
+     */
+    public void reply(String string) throws IOException
+    {
+        reply(0, string.getBytes());
+    }
+
+    /**
+     * Send the given data to the remote
+     * <p>
+     * The offset defaults to 0, and the length defaults to the length of the bytes.
+     *
+     * @param flags The custom {@link Flags} for this operation.
+     * @param bytes To read from.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @see #reply(int, byte[], int, int)
+     */
+    public void reply(int flags, byte[] bytes) throws IOException
+    {
+        reply(0, bytes, 0, bytes.length);
+    }
+
+    /**
+     * Send the given data to the remote.
+     * <p>
+     * The bytes and the length default to the string data.
+     *
+     * @param flags  The custom {@link Flags} for this operation.
+     * @param bytes  To read from.
+     * @param offset The length of bytes to skip from start.
+     * @param length The length of the bytes to read and send.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     */
+    public void reply(int flags, byte[] bytes, int offset, int length) throws IOException
+    {
         Description description = writeBegin(0, bytes.length);
-        write(description, bytes);
+        write(description, bytes, offset, length);
         writeEnd(description);
     }
 
@@ -588,19 +647,17 @@ public class ActiveConnection implements Closeable
      * If it gets closed during the read, you may think of calling {@link #cancel()} so that we can send a signal to the
      * remote that this operation is no longer valid.
      * <p>
-     * You may choose to use {@link #replyWithFixedLength(long, InputStream, long)} if the length of the data is known.
+     * You may choose to use {@link #reply(long, InputStream, long)} if the length of the data is known.
      *
      * @param flags       The custom {@link Flags} for this operation.
      * @param inputStream To read from.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      * @see #reply(String)
-     * @see #replyWithFixedLength(long, InputStream, long)
+     * @see #reply(long, InputStream, long)
      */
-    public void replyInChunks(long flags, InputStream inputStream) throws IOException
+    public void reply(long flags, InputStream inputStream) throws IOException
     {
-        Description description = writeBegin(flags, CoolSocket.LENGTH_UNSPECIFIED);
-        writeAll(description, inputStream);
-        writeEnd(description);
+        reply(flags, inputStream, CoolSocket.LENGTH_UNSPECIFIED);
     }
 
     /**
@@ -612,7 +669,7 @@ public class ActiveConnection implements Closeable
      * <p>
      * Also, the remote will not read more than the size that we reported.
      * <p>
-     * If the data length is unknown, use {@link #replyInChunks(long, InputStream)} which won't need that
+     * If the data length is unknown, use {@link #reply(long, InputStream)} which won't need that
      * information.
      *
      * @param flags       The custom {@link Flags} for this operation.
@@ -620,10 +677,10 @@ public class ActiveConnection implements Closeable
      * @param fixedSize   The length of the data when complete.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public void replyWithFixedLength(long flags, InputStream inputStream, long fixedSize) throws IOException
+    public void reply(long flags, InputStream inputStream, long fixedSize) throws IOException
     {
         Description description = writeBegin(flags, fixedSize);
-        writeAll(description, inputStream);
+        write(description, inputStream);
         writeEnd(description);
     }
 
@@ -643,7 +700,7 @@ public class ActiveConnection implements Closeable
     /**
      * Write to the remote.
      * <p>
-     * The length defaults to the length of byte array.
+     * The offset defaults to 0, and the length defaults to the length of byte array.
      *
      * @param description The description object representing the operation.
      * @param bytes       To read from.
@@ -689,7 +746,7 @@ public class ActiveConnection implements Closeable
      * @see #writeBegin(long, long)
      * @see #write(Description, int, int)
      * @see #write(Description, byte[], int, int)
-     * @see #writeAll(Description, InputStream)
+     * @see #write(Description, InputStream)
      * @see #writeEnd(Description)
      */
     public synchronized void write(Description description, byte[] bytes, int offset, int length)
@@ -724,7 +781,7 @@ public class ActiveConnection implements Closeable
      * @param inputStream To read from.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
+    public synchronized void write(Description description, InputStream inputStream) throws IOException
     {
         int len;
         while ((len = inputStream.read(description.buffer)) != -1) {

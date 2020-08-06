@@ -23,7 +23,7 @@ public class PlainTransactionTest
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         Response response = activeConnection.receive();
 
         activeConnection.close();
@@ -41,7 +41,7 @@ public class PlainTransactionTest
         BlockingCoolSocket coolSocket = new BlockingCoolSocket(PORT);
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         activeConnection.reply(message);
 
         Response response = coolSocket.waitForResponse();
@@ -60,7 +60,7 @@ public class PlainTransactionTest
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
         Response response = activeConnection.receive();
 
         activeConnection.close();
@@ -79,8 +79,8 @@ public class PlainTransactionTest
         BlockingCoolSocket coolSocket = new BlockingCoolSocket(PORT);
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
-        activeConnection.reply(headerJson.toString());
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        activeConnection.reply(headerJson);
 
         Response response = coolSocket.waitForResponse();
         JSONObject remoteHeader = response.getAsJson();
@@ -121,7 +121,7 @@ public class PlainTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT), 0);
+        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
 
         for (int i = 0; i < loops; i++) {
             activeConnection.reply(message);
