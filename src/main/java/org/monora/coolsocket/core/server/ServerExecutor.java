@@ -1,10 +1,17 @@
 package org.monora.coolsocket.core.server;
 
-import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.CoolSocket;
+import org.monora.coolsocket.core.config.ConfigFactory;
 
 import java.net.ServerSocket;
+import java.net.Socket;
 
+/**
+ * This class handles a server session by accepting connections.
+ * <p>
+ * After it receives a connection request via {@link ServerSocket#accept()}, it should direct the socket to
+ * {@link CoolSocket#respondRequest(Socket)} to have its request answered.
+ */
 public interface ServerExecutor
 {
     /**

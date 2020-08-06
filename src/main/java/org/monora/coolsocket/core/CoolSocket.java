@@ -211,11 +211,14 @@ public abstract class CoolSocket
     }
 
     /**
-     * Start the server session and ensure it has started when returned, meaning it will block the calling thread until
+     * Start the server session and ensure it has started when returning, meaning it will block the calling thread until
      * the server starts. For a nonblocking start, use {@link #startAsynchronously()}.
+     * <p>
+     * The timeout defaults to zero (wait until it starts).
      *
-     * @throws IOException          If an error occurs during the set-up process of the server socket.
-     * @throws InterruptedException If the calling thread goes into the interrupted state.
+     * @throws IOException          If an error occurs during the set-up process of the server socket, the server
+     *                              fails to start.
+     * @throws InterruptedException If the calling thread goes into the interrupted state
      * @see #start(long)
      * @see #startAsynchronously()
      */
@@ -225,13 +228,15 @@ public abstract class CoolSocket
     }
 
     /**
-     * Start the server session and ensure it has started in the given timespan or throw an {@link IOException} saying
-     * that the server could not start listening.
+     * Start the server session and ensure it has started when returning, meaning it will block the calling thread until
+     * the server starts. For a nonblocking start, use {@link #startAsynchronously()}.
      *
      * @param timeout Time in milliseconds to wait before giving up with an error.
-     * @throws IOException          If something related to the set-up process of the server socket goes wrong or the
-     *                              server socket cannot start listening in the given time.
-     * @throws InterruptedException If the calling thread goes in to the interrupted state.
+     * @throws IOException          If an error occurs during the set-up process of the server socket, the server
+     *                              fails to start.
+     * @throws InterruptedException If the calling thread goes into the interrupted state
+     * @see #start()
+     * @see #startAsynchronously()
      */
     public void start(long timeout) throws IOException, InterruptedException
     {
@@ -263,11 +268,14 @@ public abstract class CoolSocket
 
     /**
      * Stop the active listening session and close all the connections to the clients without a prior notice. This will
-     * block the calling thread indefinitely until the lock releases. Use {@link #stopAsynchronously()} to for an
-     * asynchronous stop call.
+     * block the calling thread for the given timeout amount (indefinitely if '0') until the lock releases. Use
+     * {@link #stopAsynchronously()} for an asynchronous stop operation. This will throw an {@link IOException} if the
+     * server fails to stop in time.
      * <p>
-     * This shouldn't be called when there is no session and will throw an {@link IllegalStateException} error if you
-     * do so.
+     * This shouldn't be called when there is no session and will throw an {@link IllegalStateException} error if you do
+     * so.
+     * <p>
+     * The timeout defaults to zero (wait indefinitely).
      *
      * @throws InterruptedException If the calling thread goes into interrupted state.
      * @see #stop(long)
@@ -284,6 +292,9 @@ public abstract class CoolSocket
      * block the calling thread for the given timeout amount (indefinitely if '0') until the lock releases. Use
      * {@link #stopAsynchronously()} for an asynchronous stop operation. This will throw an {@link IOException} if the
      * server fails to stop in time.
+     * <p>
+     * This shouldn't be called when there is no session and will throw an {@link IllegalStateException} error if you
+     * do so.
      *
      * @param timeout Time to wait in millisecond
      * @throws InterruptedException If the calling thread goes into interrupted state.
@@ -304,9 +315,9 @@ public abstract class CoolSocket
      */
     private class Session extends Thread
     {
-        public ServerSocket serverSocket;
+        private final ServerSocket serverSocket;
 
-        public ServerExecutor serverExecutor;
+        private final ServerExecutor serverExecutor;
 
         private final Object stateLock = new Object();
 
@@ -341,11 +352,17 @@ public abstract class CoolSocket
             }
         }
 
+        /**
+         * @return The server executor for this session.
+         */
         public ServerExecutor getServerExecutor()
         {
             return serverExecutor;
         }
 
+        /**
+         * @return The server socket that accepts the connections.
+         */
         public ServerSocket getServerSocket()
         {
             return serverSocket;
@@ -358,6 +375,11 @@ public abstract class CoolSocket
             closeServerSocket();
         }
 
+        /**
+         * Check whether this session is still listening
+         *
+         * @return True if it is listening.
+         */
         public boolean isListening()
         {
             return listening;
@@ -375,7 +397,7 @@ public abstract class CoolSocket
             }
 
             try {
-                serverExecutor.onSession(CoolSocket.this, getConfigFactory(), serverSocket);
+                getServerExecutor().onSession(CoolSocket.this, getConfigFactory(), serverSocket);
             } catch (Exception e) {
                 if (!isInterrupted())
                     CoolSocket.this.getLogger().log(Level.SEVERE, "Server exited with an unexpected error.", e);
@@ -397,11 +419,24 @@ public abstract class CoolSocket
             CoolSocket.this.serverSession = this;
         }
 
+        /**
+         * Wait until the state of the session changes.
+         * <p>
+         * The time limit defaults to 0 (wait indefinitely).
+         *
+         * @throws InterruptedException If the calling thread goes into the interrupted state.
+         */
         public void waitUntilStateChange() throws InterruptedException
         {
             waitUntilStateChange(0);
         }
 
+        /**
+         * Wait until the state of the session changes.
+         *
+         * @param ms Time to wait before the changes. Pass 0 to wait indefinitely until the state changes.
+         * @throws InterruptedException If the calling thread goes into interrupted state.
+         */
         public void waitUntilStateChange(long ms) throws InterruptedException
         {
             synchronized (stateLock) {

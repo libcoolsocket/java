@@ -4,6 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.*;
 
+/**
+ * This factory class contract configures the sockets when they are created so that extra management can be passed on
+ * to a 3rd party class that doesn't live under the CoolSocket library.
+ */
 public interface ConfigFactory
 {
     /**

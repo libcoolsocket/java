@@ -6,6 +6,9 @@ import org.monora.coolsocket.core.CoolSocket;
 import java.net.InetAddress;
 import java.util.List;
 
+/**
+ * This class type is used to handle the connections and how they will live whilst they are alive.
+ */
 public interface ConnectionManager
 {
     /**
@@ -16,7 +19,7 @@ public interface ConnectionManager
     /**
      * Handle a client connection assigning it to a thread that will execute it asynchronously.
      *
-     * @param coolSocket The calling CoolSocket instance.
+     * @param coolSocket       The calling CoolSocket instance.
      * @param activeConnection To handle.
      */
     void handleClient(CoolSocket coolSocket, ActiveConnection activeConnection);

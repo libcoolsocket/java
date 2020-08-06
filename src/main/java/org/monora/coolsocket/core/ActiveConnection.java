@@ -115,6 +115,8 @@ public class ActiveConnection implements Closeable
         return new ActiveConnection(socket, readTimeout);
     }
 
+    // TODO: 8/6/20 Improve this
+
     /**
      * Retrieve the {@link InfoExchange} value from the remote and do the appropriate operation based on that.
      * <p>
@@ -483,18 +485,51 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Receive a response from the remote that is usually small in size as this will not be saved to anywhere. This
-     * encapsulates the read data and its state in a {@link Response} instance.
+     * Receive from the remote into the given stream.
      * <p>
-     * This best use case for this is the {@link #reply(String)} method which writes a string.
+     * The output for {@link Response} will be available under the {@link Response#data} field.
      * <p>
-     * If you are going to receive a large data consider using a {@link #receive} method which takes an
-     * {@link OutputStream} as an argument.
+     * The output stream defaults to {@link ByteArrayOutputStream}, the length defaults to
+     * {@link CoolSocket#LENGTH_UNSPECIFIED}.
      *
-     * The methods that referred to here
+     * @return The response that is received.
+     * @throws IOException When a socket IO error occurs, when the max length for the data readable is exceeded,
+     *                     or {@link CancelledException} if the operation is cancelled.
+     * @see #receive()
+     * @see #receive(OutputStream)
+     */
+    public Response receive() throws IOException
+    {
+        return receive(new ByteArrayOutputStream(), getInternalCacheLimit());
+    }
+
+    /**
+     * Receive from the remote into the given stream.
+     * <p>
+     * The length defaults to {@link CoolSocket#LENGTH_UNSPECIFIED} which means the data length is unknown.
      *
+     * @param outputStream To write into.
+     * @return The response that is received.
+     * @throws IOException When a socket IO error occurs, when the max length for the data readable is exceeded,
+     *                     or {@link CancelledException} if the operation is cancelled.
+     * @see #receive()
+     * @see #receive(OutputStream, int)
+     */
+    public Response receive(OutputStream outputStream) throws IOException
+    {
+        return receive(outputStream, CoolSocket.LENGTH_UNSPECIFIED);
+    }
+
+    /**
+     * Receive a response from the remote.
+     * <p>
+     * This is a complimentary method for other read and write methods. They can also write to this. See the referred
+     * methods for other methods that are working together.
+     *
+     * @param outputStream To write into.
+     * @param maxLength    That can be read into the output stream. '-1' will mean no limit.
      * @return The response object that represents the reply of the remote.
-     * @throws IOException If an IO error occurs.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      * @see #receive(OutputStream)
      * @see #receive(OutputStream, int)
      * @see #reply(String)
@@ -505,34 +540,9 @@ public class ActiveConnection implements Closeable
      * @see #writeBegin(long, long)
      * @see #write(Description, byte[])
      * @see #write(Description, int, int)
-     * @see #
-     */
-    public Response receive() throws IOException
-    {
-        return receive(new ByteArrayOutputStream(), getInternalCacheLimit());
-    }
-
-    /**
-     * Receive from the remote into the given stream.
-     *
-     * @param outputStream To write into.
-     * @return The response that is received.
-     * @throws IOException When a socket IO error occurs, or when the max length for the data readable is exceeded.
-     * @see #receive()
-     */
-    public Response receive(OutputStream outputStream) throws IOException
-    {
-        return receive(outputStream, CoolSocket.LENGTH_UNSPECIFIED);
-    }
-
-    /**
-     * Receive from the remote into the given stream.
-     *
-     * @param outputStream To write into.
-     * @param maxLength    That can be read into the output stream. '-1' will mean no limit.
-     * @return The response that is received.
-     * @throws IOException When a socket IO error occurs, or when the max length for the data readable is exceeded.
-     * @see #receive()
+     * @see #write(Description, byte[], int, int)
+     * @see #writeEnd(Description)
+     * @see #writeAll(Description, InputStream)
      */
     public synchronized Response receive(OutputStream outputStream, int maxLength) throws IOException
     {
@@ -553,6 +563,13 @@ public class ActiveConnection implements Closeable
                 outputStream instanceof ByteArrayOutputStream ? (ByteArrayOutputStream) outputStream : null);
     }
 
+    /**
+     * Send the given string data to the remote as it is waiting to read.
+     *
+     * @param out To send.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @see #receive()
+     */
     public void reply(String out) throws IOException
     {
         byte[] bytes = out.getBytes();
@@ -561,6 +578,24 @@ public class ActiveConnection implements Closeable
         writeEnd(description);
     }
 
+    /**
+     * Send data reading from an {@link InputStream} to the remote where all the data will be read until it returns -1
+     * or gets closed during the read.
+     * <p>
+     * This will not inform the remote about the size of the data. Instead, it will send the size as it reads from the
+     * input stream.
+     * <p>
+     * If it gets closed during the read, you may think of calling {@link #cancel()} so that we can send a signal to the
+     * remote that this operation is no longer valid.
+     * <p>
+     * You may choose to use {@link #replyWithFixedLength(long, InputStream, long)} if the length of the data is known.
+     *
+     * @param flags       The custom {@link Flags} for this operation.
+     * @param inputStream To read from.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @see #reply(String)
+     * @see #replyWithFixedLength(long, InputStream, long)
+     */
     public void replyInChunks(long flags, InputStream inputStream) throws IOException
     {
         Description description = writeBegin(flags, CoolSocket.LENGTH_UNSPECIFIED);
@@ -568,6 +603,23 @@ public class ActiveConnection implements Closeable
         writeEnd(description);
     }
 
+    /**
+     * Send to the remote from an {@link InputStream} where all the data will be read until it returns -1 or gets closed
+     * during the read.
+     * <p>
+     * The size of the data is reported before the write starts and it will not send more than that even if the input
+     * stream has data available.
+     * <p>
+     * Also, the remote will not read more than the size that we reported.
+     * <p>
+     * If the data length is unknown, use {@link #replyInChunks(long, InputStream)} which won't need that
+     * information.
+     *
+     * @param flags       The custom {@link Flags} for this operation.
+     * @param inputStream To read from.
+     * @param fixedSize   The length of the data when complete.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     */
     public void replyWithFixedLength(long flags, InputStream inputStream, long fixedSize) throws IOException
     {
         Description description = writeBegin(flags, fixedSize);
@@ -576,26 +628,70 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Set the limit for maximum read from remote when the output stream self provided. This will not be used for
-     * custom output streams.
+     * Set the maximum length when reading from the remote with {@link #receive()}.
+     * <p>
+     * This will not be used for custom output streams, i.e. {@link #receive(OutputStream, int)}.
      *
      * @param internalCacheLimit The limit in bytes.
+     * @see #receive()
      */
     public void setInternalCacheLimit(int internalCacheLimit)
     {
         this.internalCacheLimit = internalCacheLimit;
     }
 
+    /**
+     * Write to the remote.
+     * <p>
+     * The length defaults to the length of byte array.
+     *
+     * @param description The description object representing the operation.
+     * @param bytes       To read from.
+     * @throws IOException If an IO error occurs, {@link CancelledException} if the operation is cancelled.
+     * @see #write(Description, byte[], int, int)
+     */
     public void write(Description description, byte[] bytes) throws IOException
     {
         write(description, bytes, 0, bytes.length);
     }
 
+    /**
+     * Write to the remote.
+     * <p>
+     * The buffer defaults to the internal buffer {@link Description#buffer}.
+     *
+     * @param description The description object representing the operation.
+     * @param offset      The bytes to skip reading from the bytes.
+     * @param length      The length of how much to read from the bytes.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @see #write(Description, byte[], int, int)
+     */
     public void write(Description description, int offset, int length) throws IOException
     {
         write(description, description.buffer, offset, length);
     }
 
+    /**
+     * Write to the remote.
+     * <p>
+     * This should be invoked after {@link #writeBegin(long, long)} which will inform the remote about the operation.
+     * <p>
+     * The remote should be waiting for this by calling one of the read or receive methods.
+     * <p>
+     * When all the data is sent, you should invoke the {@link #writeEnd(Description)} method so that the remote can
+     * know no data incoming left in the case of {@link Flags#chunked()}.
+     *
+     * @param description The description object representing the operation.
+     * @param bytes       To read from.
+     * @param offset      The bytes to skip reading from the bytes.
+     * @param length      The length of how much to read from the bytes.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @see #writeBegin(long, long)
+     * @see #write(Description, int, int)
+     * @see #write(Description, byte[], int, int)
+     * @see #writeAll(Description, InputStream)
+     * @see #writeEnd(Description)
+     */
     public synchronized void write(Description description, byte[] bytes, int offset, int length)
             throws IOException
     {
@@ -621,6 +717,13 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().write(bytes, offset, length);
     }
 
+    /**
+     * Write all the data read from the input stream.
+     *
+     * @param description The description object representing the operation.
+     * @param inputStream To read from.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     */
     public synchronized void writeAll(Description description, InputStream inputStream) throws IOException
     {
         int len;
@@ -631,9 +734,10 @@ public class ActiveConnection implements Closeable
 
     /**
      * Prepare for sending a response. This will send the flags for the upcoming data transmission so that the remote
-     * will know how to treat the data it receives. After this method call, you should invoke
-     * {@link #write(Description, byte[], int, int)} to begin writing bytes or end the part with the
-     * {@link #writeEnd(Description)} method call.
+     * will know how to treat the data it receives.
+     * <p>
+     * After this method call, you should invoke {@link #write(Description, byte[], int, int)} to begin writing bytes
+     * or end the part with the {@link #writeEnd(Description)} method call.
      *
      * @param flags       The feature flags set for this part. It sets how the remote should handle the data it
      * @param totalLength The total length of the data that will be sent. Use {@link CoolSocket#LENGTH_UNSPECIFIED} when
@@ -662,16 +766,34 @@ public class ActiveConnection implements Closeable
         return description;
     }
 
-    protected void writeByte(int bite) throws IOException
+    /**
+     * Write byte.
+     *
+     * @param b The byte to write.
+     * @throws IOException If an IO error occurs.
+     */
+    protected void writeByte(int b) throws IOException
     {
-        getOutputStreamPriv().write(bite);
+        getOutputStreamPriv().write(b);
     }
 
+    /**
+     * Write {@link ByteBreak} byte.
+     *
+     * @param byteBreak To write.
+     * @throws IOException If an IO error occurs.
+     */
     protected void writeByteBreak(ByteBreak byteBreak) throws IOException
     {
         writeByte(byteBreak.ordinal());
     }
 
+    /**
+     * Finalize the write operation that was started with {@link #writeBegin(long, long)}.
+     *
+     * @param description The description object representing the operation.
+     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     */
     public synchronized void writeEnd(Description description) throws IOException
     {
         if (description.flags.chunked()) {
@@ -682,49 +804,128 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().flush();
     }
 
+    /**
+     * Write {@link Flags}.
+     *
+     * @param flags The long integer for the flags.
+     * @throws IOException If an IO error occurs.
+     */
     protected void writeFlags(long flags) throws IOException
     {
         writeSize(flags);
     }
 
+    /**
+     * Write an integer.
+     *
+     * @param value The integer to write.
+     * @throws IOException If an IO error occurs.
+     */
     protected void writeInteger(int value) throws IOException
     {
         getOutputStreamPriv().write(ByteBuffer.allocate(Integer.BYTES).putInt(value).array());
     }
 
+    /**
+     * Write a long integer.
+     *
+     * @param value The long integer to write.
+     * @throws IOException If an IO error occurs.
+     */
     protected void writeLong(long value) throws IOException
     {
         getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(value).array());
     }
 
+    /**
+     * Write a size that is in long integer format.
+     *
+     * @param size To write.
+     * @throws IOException If an IO error occurs.
+     */
     protected void writeSize(long size) throws IOException
     {
         writeLong(size);
     }
 
+    /**
+     * A description explains how an read/write operation will be handled, and how much it has progressed.
+     * <p>
+     * This also holds internal buffer so that the same buffer can be used without occupying more space on the memory.
+     */
     public static class Description
     {
+        /**
+         * Flags are created by {@link #readBegin()} or {@link #writeBegin(long, long)} and explain the conditions
+         * of the operation.
+         */
         public final Flags flags;
 
-        public long handedLength;
-
-        public long totalLength;
-
-        public long awaitingSize;
-
+        /**
+         * The internal buffer that is used to copy bytes as we read from/write to the remote.
+         */
         public final byte[] buffer;
 
-        public ByteBreak byteBreakLocal = null;
+        /**
+         * This is filled as we read or write to the remote. If this is not a chunked transfer {@link Flags#chunked()},
+         * we make use of it by subtracting it from the {@link #totalLength}.
+         */
+        protected long handedLength;
 
-        public ByteBreak byteBreakRemote = null;
+        /**
+         * The total length to be delivered when the operation is complete.
+         * <p>
+         * If {@link Flags#chunked()}, it will be equal to zero. It will have the final value when the operation is
+         * complete.
+         */
+        protected long totalLength;
 
-        public InfoExchange pendingExchange = null;
+        /**
+         * The reported size from the remote that should be read before reading another size {@link #readSize(byte[])}.
+         * <p>
+         * This will be used by the read operations so that we can know when the remote sends {@link ByteBreak}.
+         */
+        protected long awaitingSize;
 
+        /**
+         * The byte break operation that this side wants to execute.
+         */
+        private ByteBreak byteBreakLocal = null;
+
+        /**
+         * The byte break operation that the remtoe side wants to execute.
+         */
+        private ByteBreak byteBreakRemote = null;
+
+        /**
+         * If the decided operation is {@link InfoExchange} via {@link ByteBreak#InfoExchange}, this will hold the
+         * value for what should be executed, and after it's executed, it will be cleared.
+         */
+        private InfoExchange pendingExchange = null;
+
+        /**
+         * Create a new instance.
+         * <p>
+         * The flags are encapsulated in a {@link Flags} instance.
+         *
+         * @param flags       The long integer representing the flags.
+         * @param totalLength The total length of the operation. If it is {@link CoolSocket#LENGTH_UNSPECIFIED}, then
+         *                    it will be 0 when passed on to the {@link #totalLength} field.
+         * @param buffer      To cache the read or written data.
+         */
         public Description(long flags, long totalLength, byte[] buffer)
         {
             this(new Flags(flags), totalLength, buffer);
         }
 
+        /**
+         * Create a new instance.
+         *
+         * @param flags       The flags for this operation.
+         * @param totalLength The total length of the operation. If it is {@link CoolSocket#LENGTH_UNSPECIFIED}, then
+         *                    it will be 0 when passed on to the {@link #totalLength} field.
+         * @param buffer      To cache the read or written data.
+         */
         public Description(Flags flags, long totalLength, byte[] buffer)
         {
             if (flags == null)
@@ -741,12 +942,25 @@ public class ActiveConnection implements Closeable
             this.buffer = new byte[8096];
         }
 
+        /**
+         * Check whether there is more data available for use. This may be unreliable for chunked transfers.
+         *
+         * @return The latest readable data if this is a chunked operation and that value will be changing as the
+         * read operations will consume that value, or the length that is yet to be read for an operation with a fixed
+         * length. That value will be {@link CoolSocket#LENGTH_UNSPECIFIED} when {@link #handedLength} exceeds
+         * {@link #totalLength} to indicate next reads will not bring more data.
+         */
         public long available()
         {
             return flags.chunked() ? awaitingSize
                     : (totalLength <= handedLength ? CoolSocket.LENGTH_UNSPECIFIED : totalLength - handedLength);
         }
 
+        /**
+         * Check whether there is more data to come.
+         *
+         * @return True if there may be more data incoming.
+         */
         public boolean hasAvailable()
         {
             return available() != CoolSocket.LENGTH_UNSPECIFIED;
