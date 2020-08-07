@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.config;
 
+import org.monora.coolsocket.core.session.ActiveConnection;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -27,9 +29,9 @@ public class DefaultConfigFactory implements ConfigFactory
     }
 
     @Override
-    public void configureClient(Socket socket) throws SocketException
+    public ActiveConnection configureClient(Socket socket) throws SocketException
     {
-        socket.setSoTimeout(readTimeout);
+        return new ActiveConnection(socket, readTimeout);
     }
 
     @Override

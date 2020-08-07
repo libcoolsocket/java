@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.config;
 
+import org.monora.coolsocket.core.session.ActiveConnection;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.*;
@@ -29,13 +31,14 @@ public interface ConfigFactory
     ServerSocket createServer() throws IOException;
 
     /**
-     * Configure the socket connection to a client before its actual usage. The configuration may be different from
-     * that of {@link ServerSocket#accept()} assigns.
+     * Configure the socket connection to a client before its actual usage and produce an {@link ActiveConnection}
+     * instance. The configuration may be different from that of {@link ServerSocket#accept()} assigns.
      *
      * @param client To configure.
+     * @return The configured socket encapsulated in a {@link ActiveConnection}.
      * @throws SocketException When an unrecoverable error occurs due to misconfiguration.
      */
-    void configureClient(Socket client) throws SocketException;
+    ActiveConnection configureClient(Socket client) throws SocketException;
 
     /**
      * The address that the upcoming products will be assigned to. This does not necessarily reflect the

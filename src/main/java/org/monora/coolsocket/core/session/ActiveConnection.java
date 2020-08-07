@@ -192,7 +192,7 @@ public class ActiveConnection implements Closeable
         int maxLength = infoExchange.maxLength;
         int length = readInteger(buffer);
         if (length > maxLength)
-            throw new SizeExceededException("The remote reported size for " + infoExchange + "is too large.",
+            throw new SizeLimitExceededException("The remote reported size for " + infoExchange + "is too large.",
                     maxLength, length);
 
         switch (infoExchange) {
@@ -481,7 +481,7 @@ public class ActiveConnection implements Closeable
             read += len;
 
         if (read < length)
-            throw new SizeFellBehindException("Target closed connection before reading as many data.", length, read);
+            throw new SizeLimitFellBehindException("Target closed connection before reading as many data.", length, read);
     }
 
     /**
@@ -620,7 +620,7 @@ public class ActiveConnection implements Closeable
             len = read(description);
 
             if (maxLength > 0 && description.handedLength > maxLength)
-                throw new SizeExceededException("The length of the data exceeds the maximum length.", maxLength,
+                throw new SizeLimitExceededException("The length of the data exceeds the maximum length.", maxLength,
                         description.handedLength);
 
             if (len > 0)
@@ -806,27 +806,29 @@ public class ActiveConnection implements Closeable
     public synchronized void write(Description description, byte[] bytes, int offset, int length)
             throws IOException
     {
-        if (offset < 0 || (bytes.length > 0 && offset >= bytes.length))
-            throw new ArrayIndexOutOfBoundsException("The offset cannot be smaller than 0, or equal to or larger " +
-                    "than the actual size of the data.");
+        if (length < 0 || offset + length > bytes.length)
+            throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
-        if (length < 0 || (bytes.length > 0 && length > bytes.length))
-            throw new ArrayIndexOutOfBoundsException("The length cannot be 0 or larger than the actual size of the " +
-                    "data.");
+        if (!description.flags.chunked() && description.available() == CoolSocket.LENGTH_UNSPECIFIED && length > 0)
+            throw new IndexOutOfBoundsException("Trying to write over a description that is already done.");
 
-        int size = length - offset;
-        description.handedLength += size;
+        boolean chunked = description.flags.chunked();
+        int lengthActual = chunked ? length : (int) Math.min(length, description.available());
 
-        if (description.flags.chunked())
-            description.totalLength += size;
-        else if (description.handedLength > description.totalLength)
-            throw new SizeExceededException("The size of the data exceeds that length notified to the remote.",
-                    description.totalLength, description.handedLength);
+        if (chunked)
+            description.totalLength += lengthActual;
+
+        description.handedLength += lengthActual;
 
         handleByteBreak(description, true);
-        writeSize(size);
+        writeSize(length);
 
-        getOutputStreamPriv().write(bytes, offset, length);
+        getOutputStreamPriv().write(bytes, offset, lengthActual);
+
+        if (lengthActual < length)
+            throw new SizeLimitExceededException("The length requested exceeds the data size reported to the remote. " +
+                    "The requested size has been written to the remote, but this is an error that should handled.",
+                    description.totalLength, description.handedLength - lengthActual + length);
     }
 
     /**
@@ -911,6 +913,11 @@ public class ActiveConnection implements Closeable
         if (description.flags.chunked()) {
             handleByteBreak(description, true);
             writeSize(-1);
+        } else if (description.available() > 0) {
+            // If not chunked, then the size must be known, and if the sent size ia smaller than reported, this is an
+            // error.
+            throw new SizeLimitFellBehindException("The write operation should not be ended. The written byte length is " +
+                    "below what was reported.", description.totalLength, description.handedLength);
         }
 
         getOutputStreamPriv().flush();
@@ -1069,6 +1076,16 @@ public class ActiveConnection implements Closeable
         }
 
         /**
+         * Get the data length that has been moved so far.
+         *
+         * @return The moved data length.
+         */
+        public long handedLength()
+        {
+            return handedLength;
+        }
+
+        /**
          * Check whether there is more data to come.
          *
          * @return True if there may be more data incoming.
@@ -1076,6 +1093,22 @@ public class ActiveConnection implements Closeable
         public boolean hasAvailable()
         {
             return available() != CoolSocket.LENGTH_UNSPECIFIED;
+        }
+
+        /**
+         * Get the total length for this operation.
+         * <p>
+         * To check whether there is more to come, use {@link #hasAvailable()}.
+         * <p>
+         * Chunked operations will show the length that has been moved. If not completed yet, the shown value will
+         * also be incomplete.
+         *
+         * @return The calculated data length that has been transferred.
+         * @see #hasAvailable()
+         */
+        public long totalLength()
+        {
+            return totalLength;
         }
     }
 }

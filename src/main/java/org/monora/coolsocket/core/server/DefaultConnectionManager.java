@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 public class DefaultConnectionManager implements ConnectionManager
@@ -29,23 +30,34 @@ public class DefaultConnectionManager implements ConnectionManager
         int contract = closingContract;
         boolean wait = waitForExit;
 
-        synchronized (connectionList) {
-            for (ActiveConnection connection : connectionList) {
-                try {
-                    switch (contract) {
-                        case CLOSING_CONTRACT_DO_NOTHING:
-                            break;
-                        case CLOSING_CONTRACT_CANCEL:
-                            connection.cancel();
-                            break;
-                        case CLOSING_CONTRACT_CLOSE_SAFELY:
-                            connection.closeSafely();
-                        case CLOSING_CONTRACT_CLOSE_IMMEDIATELY:
-                        default:
-                            connection.close();
+        if (closingContract != CLOSING_CONTRACT_DO_NOTHING) {
+            synchronized (connectionList) {
+                for (ActiveConnection connection : connectionList) {
+                    try {
+                        switch (contract) {
+                            case CLOSING_CONTRACT_CANCEL:
+                                connection.cancel();
+                                break;
+                            case CLOSING_CONTRACT_CLOSE_SAFELY:
+                                connection.closeSafely();
+                                break;
+                            case CLOSING_CONTRACT_CLOSE_IMMEDIATELY:
+                            default:
+                                connection.close();
+                        }
+                    } catch (IOException ignored) {
                     }
-                } catch (IOException ignored) {
                 }
+            }
+        }
+
+        if (wait) {
+            try {
+                // Shutdown the threads.
+                executorService.shutdown();
+                // Wait for them to quit 10 seconds at most.
+                executorService.awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
             }
         }
     }
@@ -59,7 +71,7 @@ public class DefaultConnectionManager implements ConnectionManager
 
         executorService.submit(() -> {
             try {
-                coolSocket.onConnected(activeConnection);
+                coolSocket.getClientHandler().onConnected(activeConnection);
             } catch (Exception e) {
                 coolSocket.getLogger().log(Level.SEVERE, "An error occurred during handling of a client", e);
             } finally {

@@ -1,6 +1,9 @@
 package org.monora.coolsocket.core;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
@@ -15,60 +18,35 @@ public class ClientManagementTest
 
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(6, 10, 0, TimeUnit.MILLISECONDS,
             new SynchronousQueue<>());
-    private final CoolSocket coolSocket = new VeryCoolSocket();
+
+    private final CoolSocket coolSocket = new CoolSocket(PORT);
+
+    private final ClientRunnable[] clients = new ClientRunnable[6];
 
     @Before
     public void setUp() throws IOException, InterruptedException
     {
         coolSocket.start();
+
+        for (int i = 0; i < clients.length; i++) {
+            clients[i] = new ClientRunnable();
+            executor.execute(clients[i]);
+        }
     }
 
     @After
     public void tearApart() throws InterruptedException
     {
-        if (coolSocket.isListening())
-            coolSocket.stop();
+        coolSocket.stop();
+        executor.shutdown();
     }
 
-    @Ignore
     @Test
     public void closingServerClosesClientsTest() throws IOException, InterruptedException
     {
-        ClientRunnable[] clients = new ClientRunnable[6];
-
-        for (int i = 0; i < clients.length; i++) {
-            clients[i] = new ClientRunnable();
-        }
-
-        for (ClientRunnable runnable : clients) {
-            executor.execute(runnable);
-        }
-
-        coolSocket.stop();
-        executor.awaitTermination(0, TimeUnit.MILLISECONDS);
-
         for (ClientRunnable runnable : clients) {
             Assert.assertTrue("The closed exception should be thrown.",
                     runnable.exception instanceof IOException);
-        }
-    }
-
-    private static class VeryCoolSocket extends CoolSocket
-    {
-        public VeryCoolSocket()
-        {
-            super(PORT);
-        }
-
-        @Override
-        public void onConnected(ActiveConnection activeConnection)
-        {
-            try {
-                while (activeConnection.getSocket().isConnected())
-                    activeConnection.receive();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
 

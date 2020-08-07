@@ -1,9 +1,9 @@
 package org.monora.coolsocket.core.response;
 
 /**
- * This exception is thrown when the length of data falls behind what was expected.
+ * This exception is thrown when the given size is larger than what was expected.
  */
-public class SizeFellBehindException extends SizeMismatchException
+public class SizeLimitExceededException extends SizeMismatchException
 {
     /**
      * Create an instance where the expected and got size integers are given with a message with message describing the
@@ -13,7 +13,7 @@ public class SizeFellBehindException extends SizeMismatchException
      * @param sizeExpected The size that was expected.
      * @param sizeGot      The size that was given.
      */
-    public SizeFellBehindException(String description, long sizeExpected, long sizeGot)
+    public SizeLimitExceededException(String description, long sizeExpected, long sizeGot)
     {
         super(description, sizeExpected, sizeGot);
     }
