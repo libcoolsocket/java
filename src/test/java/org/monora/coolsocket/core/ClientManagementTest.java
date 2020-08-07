@@ -1,68 +1,97 @@
 package org.monora.coolsocket.core;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.monora.coolsocket.core.client.ClientHandler;
+import org.monora.coolsocket.core.server.ConnectionManager;
+import org.monora.coolsocket.core.server.ConnectionManagerFactory;
+import org.monora.coolsocket.core.server.DefaultConnectionManager;
 import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.ClosedException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.net.SocketException;
 
+@Ignore
 public class ClientManagementTest
 {
     public static final int PORT = 58433;
 
-    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(6, 10, 0, TimeUnit.MILLISECONDS,
-            new SynchronousQueue<>());
-
-    private final CoolSocket coolSocket = new CoolSocket(PORT);
-
-    private final ClientRunnable[] clients = new ClientRunnable[6];
-
-    @Before
-    public void setUp() throws IOException, InterruptedException
-    {
-        coolSocket.start();
-
-        for (int i = 0; i < clients.length; i++) {
-            clients[i] = new ClientRunnable();
-            executor.execute(clients[i]);
-        }
-    }
-
-    @After
-    public void tearApart() throws InterruptedException
-    {
-        coolSocket.stop();
-        executor.shutdown();
-    }
-
-    @Test
+    @Test(expected = SocketException.class)
     public void closingServerClosesClientsTest() throws IOException, InterruptedException
     {
-        for (ClientRunnable runnable : clients) {
-            Assert.assertTrue("The closed exception should be thrown.",
-                    runnable.exception instanceof IOException);
+        final CoolSocket coolSocket = new CoolSocket(PORT);
+        coolSocket.setClientHandler(new LoopClientHandler(coolSocket));
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            while (activeConnection.getSocket().isConnected())
+                activeConnection.receive();
+        } finally {
+            coolSocket.stop();
         }
     }
 
-    private static class ClientRunnable implements Runnable
+    @Test(expected = ClosedException.class)
+    public void closingSafelyContractTest() throws IOException, InterruptedException
     {
-        public Exception exception;
+        final CoolSocket coolSocket = new CoolSocket(PORT);
+        coolSocket.setClientHandler(new LoopClientHandler(coolSocket));
+        coolSocket.setConnectionManagerFactory(new CustomConnectionManagerFactory(true,
+                ConnectionManager.CLOSING_CONTRACT_CLOSE_SAFELY));
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            while (activeConnection.getSocket().isConnected())
+                activeConnection.receive();
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    public static class LoopClientHandler implements ClientHandler
+    {
+        private final CoolSocket coolSocket;
+
+        public LoopClientHandler(CoolSocket coolSocket)
+        {
+            this.coolSocket = coolSocket;
+        }
 
         @Override
-        public void run()
+        public void onConnected(ActiveConnection activeConnection)
         {
-            try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
-                while (activeConnection.getSocket().isConnected())
+            try {
+                for (int i = 0; i < 500; i++) {
                     activeConnection.reply("Hey!");
-            } catch (Exception e) {
-                exception = e;
+                    if (i == 10)
+                        coolSocket.stop();
+                }
+            } catch (Exception ignored) {
             }
+        }
+    }
+
+    public static class CustomConnectionManagerFactory implements ConnectionManagerFactory
+    {
+        private final boolean waitForExit;
+
+        private final int closingContract;
+
+        public CustomConnectionManagerFactory(boolean wait, int closingContract)
+        {
+            this.waitForExit = wait;
+            this.closingContract = closingContract;
+        }
+
+        @Override
+        public ConnectionManager createConnectionManager()
+        {
+            DefaultConnectionManager connectionManager = new DefaultConnectionManager();
+            connectionManager.setClosingContract(waitForExit, closingContract);
+
+            return connectionManager;
         }
     }
 }

@@ -32,7 +32,7 @@ public class DataTransactionTest
             public void onConnected(ActiveConnection activeConnection)
             {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
+                    ActiveConnection.Description description = activeConnection.writeBegin(0);
                     int len;
 
                     while ((len = inputStream.read(description.buffer)) != -1)
@@ -77,7 +77,7 @@ public class DataTransactionTest
             public void onConnected(ActiveConnection activeConnection)
             {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
+                    ActiveConnection.Description description = activeConnection.writeBegin(0);
                     activeConnection.write(description, description.buffer);
                     activeConnection.writeEnd(description);
                 } catch (IOException ignored) {
@@ -108,7 +108,7 @@ public class DataTransactionTest
             public void onConnected(ActiveConnection activeConnection)
             {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
+                    ActiveConnection.Description description = activeConnection.writeBegin(0);
                     activeConnection.write(description, description.buffer);
                     activeConnection.writeEnd(description);
                 } catch (IOException e) {

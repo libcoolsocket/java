@@ -24,7 +24,7 @@ public class DefaultConnectionManager implements ConnectionManager
     @Override
     public void closeAll()
     {
-        if (connectionList.size() == 0)
+        if (connectionList.size() == 0 || executorService.isShutdown())
             return;
 
         int contract = closingContract;

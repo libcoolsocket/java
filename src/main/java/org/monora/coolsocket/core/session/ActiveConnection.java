@@ -200,7 +200,7 @@ public class ActiveConnection implements Closeable
                 readExactIntoBuffer(new byte[length], length);
                 break;
             case ProtocolVersion:
-                protocolVersion = length;
+                protocolVersion = readInteger(buffer);
         }
 
         return infoExchange;
@@ -216,22 +216,21 @@ public class ActiveConnection implements Closeable
     {
         writeInteger(infoExchange.ordinal());
 
-        int firstInteger;
+        int length;
         byte[] bytes;
         switch (infoExchange) {
             case ProtocolVersion:
-                firstInteger = Config.PROTOCOL_VERSION;
-                bytes = null;
+                length = Integer.BYTES;
+                bytes = ByteBuffer.allocate(length).putInt(Config.PROTOCOL_VERSION).array();
                 break;
             case Dummy:
             default:
                 bytes = "Dummy, dum dum!".getBytes();
-                firstInteger = bytes.length;
+                length = bytes.length;
         }
 
-        writeInteger(firstInteger);
-        if (bytes != null)
-            getOutputStreamPriv().write(bytes);
+        writeInteger(length);
+        getOutputStreamPriv().write(bytes);
     }
 
     /**
@@ -314,51 +313,54 @@ public class ActiveConnection implements Closeable
 
     public void handleByteBreak(Description description, boolean localSending) throws IOException
     {
+        if (!description.hasAvailable())
+            throw new DescriptionClosedException("This description is closed.", description);
+
+        InfoExchange exchange = null;
+        ByteBreak local;
+        ByteBreak remote;
+        ByteBreak chosen;
+
         if (closeRequested())
-            description.byteBreakLocal = ByteBreak.Close;
+            local = ByteBreak.Close;
         else if (cancelled())
-            description.byteBreakLocal = ByteBreak.Cancel;
+            local = ByteBreak.Cancel;
         else if (protocolVersion == 0) {
-            description.byteBreakLocal = ByteBreak.InfoExchange;
-            description.pendingExchange = InfoExchange.ProtocolVersion;
+            local = ByteBreak.InfoExchange;
+            exchange = InfoExchange.ProtocolVersion;
         } else
-            description.byteBreakLocal = ByteBreak.None;
+            local = ByteBreak.None;
 
         if (localSending) {
-            writeByteBreak(description.byteBreakLocal);
-            description.byteBreakRemote = readByteBreak();
+            writeByteBreak(local);
+            remote = readByteBreak();
+            chosen = ByteBreak.chooseOver(local, remote);
         } else {
-            description.byteBreakRemote = readByteBreak();
-            writeByteBreak(description.byteBreakLocal);
+            remote = readByteBreak();
+            chosen = ByteBreak.chooseOver(remote, local);
+            writeByteBreak(chosen);
         }
 
-        if (description.byteBreakLocal.equals(ByteBreak.Close) || description.byteBreakRemote.equals(ByteBreak.Close)) {
-            try {
-                close();
-            } catch (Exception ignored) {
-            }
-            throw new ClosedException("The connection just closed as one of the sides wanted it.",
-                    description.byteBreakRemote.equals(ByteBreak.Close));
-        } else if (description.byteBreakLocal.equals(ByteBreak.Cancel)
-                || description.byteBreakRemote.equals(ByteBreak.Cancel))
-            throw new CancelledException("This operation has been cancelled.", description.byteBreakRemote.equals(
-                    ByteBreak.Cancel));
-
-        // If one side sends None, it will mean unsupported. If both sides send None, it will mean, no operation
-        // requested by both sides.
-        if (!description.byteBreakLocal.equals(description.byteBreakRemote)
-                || description.byteBreakLocal.equals(ByteBreak.None))
-            return;
-
-        if (description.byteBreakLocal == ByteBreak.InfoExchange) {
-            if (localSending)
-                exchangeSend(exchangeReceive());
-            else {
-                exchangeSend(description.pendingExchange);
-                exchangeReceive();
-            }
-
-            description.pendingExchange = null;
+        switch (chosen) {
+            case Close:
+                try {
+                    close();
+                } catch (Exception ignored) {
+                }
+                throw new ClosedException("The connection closed.", !local.equals(ByteBreak.Close));
+            case Cancel:
+                throw new CancelledException("This operation has been cancelled.", !local.equals(ByteBreak.Cancel));
+            case InfoExchange:
+                if (localSending)
+                    exchangeSend(exchangeReceive());
+                else {
+                    exchangeSend(exchange == null ? InfoExchange.Dummy : exchange);
+                    exchangeReceive();
+                }
+                break;
+            case None:
+            default:
+                return;
         }
 
         handleByteBreak(description, localSending);
@@ -377,23 +379,28 @@ public class ActiveConnection implements Closeable
     {
         byte[] buffer = description.buffer;
         boolean chunked = description.flags.chunked();
-        long available = 0;
 
-        if (description.awaitingSize <= 0) {
+        if (description.available <= 0) {
             handleByteBreak(description, false);
-            description.awaitingSize = readSize(buffer);
-            available = description.available();
-
-            if (available == CoolSocket.LENGTH_UNSPECIFIED)
-                return CoolSocket.LENGTH_UNSPECIFIED;
+            description.available = readSize(buffer);
         }
 
-        int len = getInputStreamPriv().read(buffer, 0, (int) Math.min(description.buffer.length, available));
-        description.handedLength += len;
-        description.awaitingSize -= len;
+        if (!description.hasAvailable())
+            return CoolSocket.LENGTH_UNSPECIFIED;
 
-        if (chunked)
-            description.totalLength += len;
+        int len = getInputStreamPriv().read(buffer, 0, (int) Math.min(description.buffer.length,
+                description.available()));
+
+        if (len != -1) {
+            description.consumedLength += len;
+            description.available -= len;
+
+            if (chunked)
+                description.totalLength += len;
+        } else if (!chunked && description.hasAvailable()) {
+            throw new SizeLimitFellBehindException("Remote closed the connection before reading the data in full.",
+                    description.totalLength, description.consumedLength);
+        }
 
         return len;
     }
@@ -433,8 +440,7 @@ public class ActiveConnection implements Closeable
     public Description readBegin(byte[] buffer) throws IOException
     {
         Flags flags = new Flags(readFlags(buffer));
-        Description description = new Description(flags, flags.chunked() ? CoolSocket.LENGTH_UNSPECIFIED
-                : readSize(buffer), buffer);
+        Description description = new Description(flags, readSize(buffer), buffer);
 
         handleByteBreak(description, false);
 
@@ -481,7 +487,7 @@ public class ActiveConnection implements Closeable
             read += len;
 
         if (read < length)
-            throw new SizeLimitFellBehindException("Target closed connection before reading as many data.", length, read);
+            throw new SocketException("Target closed the connection prematurely.");
     }
 
     /**
@@ -619,9 +625,9 @@ public class ActiveConnection implements Closeable
         do {
             len = read(description);
 
-            if (maxLength > 0 && description.handedLength > maxLength)
+            if (maxLength > 0 && description.consumedLength > maxLength)
                 throw new SizeLimitExceededException("The length of the data exceeds the maximum length.", maxLength,
-                        description.handedLength);
+                        description.consumedLength);
 
             if (len > 0)
                 outputStream.write(description.buffer, 0, len);
@@ -670,7 +676,7 @@ public class ActiveConnection implements Closeable
      */
     public void reply(long flags, byte[] bytes) throws IOException
     {
-        reply(0, bytes, 0, bytes.length);
+        reply(flags, bytes, 0, bytes.length);
     }
 
     /**
@@ -686,7 +692,7 @@ public class ActiveConnection implements Closeable
      */
     public void reply(long flags, byte[] bytes, int offset, int length) throws IOException
     {
-        Description description = writeBegin(0, bytes.length);
+        Description description = writeBegin(flags, bytes.length);
         write(description, bytes, offset, length);
         writeEnd(description);
     }
@@ -711,7 +717,7 @@ public class ActiveConnection implements Closeable
      */
     public void reply(long flags, InputStream inputStream) throws IOException
     {
-        reply(flags, inputStream, CoolSocket.LENGTH_UNSPECIFIED);
+        reply(flags | Flags.FLAG_DATA_CHUNKED, inputStream, 0);
     }
 
     /**
@@ -809,8 +815,7 @@ public class ActiveConnection implements Closeable
         if (length < 0 || offset + length > bytes.length)
             throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
-        if (!description.flags.chunked() && description.available() == CoolSocket.LENGTH_UNSPECIFIED && length > 0)
-            throw new IndexOutOfBoundsException("Trying to write over a description that is already done.");
+        handleByteBreak(description, true);
 
         boolean chunked = description.flags.chunked();
         int lengthActual = chunked ? length : (int) Math.min(length, description.available());
@@ -818,17 +823,16 @@ public class ActiveConnection implements Closeable
         if (chunked)
             description.totalLength += lengthActual;
 
-        description.handedLength += lengthActual;
+        description.consumedLength += lengthActual;
 
-        handleByteBreak(description, true);
-        writeSize(length);
+        writeSize(lengthActual);
 
         getOutputStreamPriv().write(bytes, offset, lengthActual);
 
         if (lengthActual < length)
             throw new SizeLimitExceededException("The length requested exceeds the data size reported to the remote. " +
                     "The requested size has been written to the remote, but this is an error that should handled.",
-                    description.totalLength, description.handedLength - lengthActual + length);
+                    description.totalLength, description.consumedLength - lengthActual + length);
     }
 
     /**
@@ -847,6 +851,21 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Prepare for sending a response.
+     * <p>
+     * The totoal length defaults to zero and the transmission type becomes chunked {@link Flags#FLAG_DATA_CHUNKED}.
+     *
+     * @param flags The feature flags set for this part. It sets how the remote should handle the data it
+     * @return The description object for this write operation.
+     * @throws IOException When socket related IO error occurs.
+     * @see #writeBegin(long, long)
+     */
+    public synchronized Description writeBegin(long flags) throws IOException
+    {
+        return writeBegin(flags | Flags.FLAG_DATA_CHUNKED, 0);
+    }
+
+    /**
      * Prepare for sending a response. This will send the flags for the upcoming data transmission so that the remote
      * will know how to treat the data it receives.
      * <p>
@@ -854,10 +873,8 @@ public class ActiveConnection implements Closeable
      * or end the part with the {@link #writeEnd(Description)} method call.
      *
      * @param flags       The feature flags set for this part. It sets how the remote should handle the data it
-     * @param totalLength The total length of the data that will be sent. Use {@link CoolSocket#LENGTH_UNSPECIFIED} when
-     *                    the length is unknown at the moment. Doing so will make this transmission process
-     *                    {@link Flags#FLAG_DATA_CHUNKED} where the data length will only be visible as much as
-     *                    we read from the source.
+     * @param totalLength The total length of the data that will be sent. If unknown, use {@link #writeBegin(long)} for
+     *                    chunked transmission type.
      * @return The description object for this write operation.
      * @throws IOException When socket related IO error occurs.
      */
@@ -865,16 +882,10 @@ public class ActiveConnection implements Closeable
     {
         byte[] buffer = new byte[8096];
 
-        if (totalLength == CoolSocket.LENGTH_UNSPECIFIED)
-            flags |= Flags.FLAG_DATA_CHUNKED;
-
         writeFlags(flags);
+        writeSize(totalLength);
 
         Description description = new Description(flags, totalLength, buffer);
-
-        if (totalLength > CoolSocket.LENGTH_UNSPECIFIED)
-            writeSize(totalLength);
-
         handleByteBreak(description, true);
 
         return description;
@@ -910,17 +921,20 @@ public class ActiveConnection implements Closeable
      */
     public synchronized void writeEnd(Description description) throws IOException
     {
-        if (description.flags.chunked()) {
+        if (description.flags.chunked() || description.hasAvailable()) {
             handleByteBreak(description, true);
-            writeSize(-1);
-        } else if (description.available() > 0) {
-            // If not chunked, then the size must be known, and if the sent size ia smaller than reported, this is an
-            // error.
-            throw new SizeLimitFellBehindException("The write operation should not be ended. The written byte length is " +
-                    "below what was reported.", description.totalLength, description.handedLength);
+            writeSize(CoolSocket.LENGTH_UNSPECIFIED);
         }
 
+        description.available = CoolSocket.LENGTH_UNSPECIFIED;
+
         getOutputStreamPriv().flush();
+
+        if (!description.flags.chunked() && description.hasAvailable())
+            // If not chunked, then the size must be known, and if the sent size ia smaller than reported, this is an
+            // error.
+            throw new SizeLimitFellBehindException("The write operation should not be ended. The written byte length" +
+                    " is below what was reported.", description.totalLength, description.consumedLength);
     }
 
     /**
@@ -989,7 +1003,7 @@ public class ActiveConnection implements Closeable
          * This is filled as we read or write to the remote. If this is not a chunked transfer {@link Flags#chunked()},
          * we make use of it by subtracting it from the {@link #totalLength}.
          */
-        protected long handedLength;
+        protected long consumedLength;
 
         /**
          * The total length to be delivered when the operation is complete.
@@ -1004,23 +1018,7 @@ public class ActiveConnection implements Closeable
          * <p>
          * This will be used by the read operations so that we can know when the remote sends {@link ByteBreak}.
          */
-        protected long awaitingSize;
-
-        /**
-         * The byte break operation that this side wants to execute.
-         */
-        private ByteBreak byteBreakLocal = null;
-
-        /**
-         * The byte break operation that the remtoe side wants to execute.
-         */
-        private ByteBreak byteBreakRemote = null;
-
-        /**
-         * If the decided operation is {@link InfoExchange} via {@link ByteBreak#InfoExchange}, this will hold the
-         * value for what should be executed, and after it's executed, it will be cleared.
-         */
-        private InfoExchange pendingExchange = null;
+        protected long available;
 
         /**
          * Create a new instance.
@@ -1028,8 +1026,7 @@ public class ActiveConnection implements Closeable
          * The flags are encapsulated in a {@link Flags} instance.
          *
          * @param flags       The long integer representing the flags.
-         * @param totalLength The total length of the operation. If it is {@link CoolSocket#LENGTH_UNSPECIFIED}, then
-         *                    it will be 0 when passed on to the {@link #totalLength} field.
+         * @param totalLength The total length of the operation.
          * @param buffer      To cache the read or written data.
          */
         public Description(long flags, long totalLength, byte[] buffer)
@@ -1041,8 +1038,7 @@ public class ActiveConnection implements Closeable
          * Create a new instance.
          *
          * @param flags       The flags for this operation.
-         * @param totalLength The total length of the operation. If it is {@link CoolSocket#LENGTH_UNSPECIFIED}, then
-         *                    it will be 0 when passed on to the {@link #totalLength} field.
+         * @param totalLength The total length of the operation.
          * @param buffer      To cache the read or written data.
          */
         public Description(Flags flags, long totalLength, byte[] buffer)
@@ -1056,23 +1052,32 @@ public class ActiveConnection implements Closeable
             if (buffer.length < 8096)
                 throw new BufferUnderflowException();
 
+            if (totalLength < 0)
+                throw new IllegalArgumentException();
+
             this.flags = flags;
-            this.totalLength = totalLength <= CoolSocket.LENGTH_UNSPECIFIED ? 0 : totalLength;
+            this.totalLength = totalLength;
             this.buffer = new byte[8096];
         }
 
         /**
-         * Check whether there is more data available for use. This may be unreliable for chunked transfers.
+         * Return the available data.
+         * <p>
+         * If chunked, this will return the data length available. This will usually not reflect the whole as the
+         * data is available as much as it is read.
+         * <p>
+         * If not chunked, this will return the data length left to be consumed as a whole.
+         * <p>
+         * If this returns {@link CoolSocket#LENGTH_UNSPECIFIED}, it will mean no data available and this description
+         * is closed. You can also use {@link #hasAvailable()} to check if there is data available.
          *
-         * @return The latest readable data if this is a chunked operation and that value will be changing as the
-         * read operations will consume that value, or the length that is yet to be read for an operation with a fixed
-         * length. That value will be {@link CoolSocket#LENGTH_UNSPECIFIED} when {@link #handedLength} exceeds
-         * {@link #totalLength} to indicate next reads will not bring more data.
+         * @return The available data length.
+         * @see #hasAvailable()
          */
         public long available()
         {
-            return flags.chunked() ? awaitingSize
-                    : (totalLength <= handedLength ? CoolSocket.LENGTH_UNSPECIFIED : totalLength - handedLength);
+            return flags.chunked() ? available : (totalLength <= consumedLength ? CoolSocket.LENGTH_UNSPECIFIED
+                    : totalLength - consumedLength);
         }
 
         /**
@@ -1080,13 +1085,16 @@ public class ActiveConnection implements Closeable
          *
          * @return The moved data length.
          */
-        public long handedLength()
+        public long consumedLength()
         {
-            return handedLength;
+            return consumedLength;
         }
 
         /**
          * Check whether there is more data to come.
+         * <p>
+         * This can also referred to as the <b>~isClosed()</b>, which means when this returns false, this description
+         * will no longer valid to use for reading/writing.
          *
          * @return True if there may be more data incoming.
          */

@@ -24,25 +24,47 @@ public enum ByteBreak
     /**
      * Ineffective byte break.
      */
-    None,
+    None(0),
 
     /*
      * Asks from the receiver to receive an info about the protocol and then send its own.
      */
-    InfoExchange,
+    InfoExchange(8),
 
     /**
      * Close the connection
-     *
+     * <p>
      * When this byte break appears the next read/write operation will certainly produce an error if you don't quit
      * the session.
      */
-    Close,
+    Close(10),
 
     /**
      * Cancel the current operation.
      */
-    Cancel;
+    Cancel(9);
+
+    public final int priority;
+
+    /**
+     * Create new instance.
+     * <p>
+     * Priority defaults to 5.
+     */
+    ByteBreak()
+    {
+        this(5);
+    }
+
+    /**
+     * Create new instance.
+     *
+     * @param priority The priority that set the importance of execution.
+     */
+    ByteBreak(int priority)
+    {
+        this.priority = priority;
+    }
 
     /**
      * Find the matching {@link ByteBreak} value using the given ordinal.
@@ -57,5 +79,10 @@ public enum ByteBreak
             return ByteBreak.None;
 
         return values[ordinal];
+    }
+
+    public static ByteBreak chooseOver(ByteBreak sending, ByteBreak receiving)
+    {
+        return sending.priority >= receiving.priority ? sending : receiving;
     }
 }

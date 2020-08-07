@@ -26,7 +26,7 @@ public class CommandExecutionTest
             {
                 try {
                     activeConnection.cancel();
-                    activeConnection.writeBegin(0, LENGTH_UNSPECIFIED);
+                    activeConnection.writeBegin(0);
                 } catch (CancelledException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -64,7 +64,7 @@ public class CommandExecutionTest
         coolSocket.start();
 
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
-            activeConnection.writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
+            activeConnection.writeBegin(0);
         } finally {
             coolSocket.stop();
         }
@@ -101,7 +101,7 @@ public class CommandExecutionTest
         ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
 
         try {
-            activeConnection.writeBegin(0, CoolSocket.LENGTH_UNSPECIFIED);
+            activeConnection.writeBegin(0);
         } catch (CancelledException ignored) {
         } catch (IOException e) {
             e.printStackTrace();
@@ -141,8 +141,7 @@ public class CommandExecutionTest
         coolSocket.start();
 
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
-            ActiveConnection.Description description = activeConnection.writeBegin(0,
-                    CoolSocket.LENGTH_UNSPECIFIED);
+            ActiveConnection.Description description = activeConnection.writeBegin(0);
 
             try {
                 activeConnection.write(description, message.getBytes());
