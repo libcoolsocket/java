@@ -2,7 +2,7 @@
 
 CoolSocket is a scalable approach to TCP socket communication. It can send just text, or it can send large bytes just 
 like usual streams. The difference is it injects its own communication bits into the bytes delivered so that your 
-requests to stop an operation can be processed.
+requests (e.g, stop or cancel an operation) can be processed.
 
 Here is a quick example:
 
@@ -34,30 +34,16 @@ public class Main
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(port), 0);
-        System.out.println(activeConnection.receive().getAsString());
-        activeConnection.reply("Merhaba!");
-
-        activeConnection.close();
-        coolSocket.stop();
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(port), 0)) {
+            System.out.println(activeConnection.receive().getAsString());
+            activeConnection.reply("Merhaba!");
+        } finally {
+            coolSocket.stop();   
+        }
     }
 }
 ```
 
 ## Implementing CoolSocket
 
-### Gradle
-
-```groovy
-// ...
-repositories {
-    // ...
-    jcenter()
-}
-// ...
-dependencies {
-    // ...
-    implementation 'com.genonbeta.coolsocket:main:1.0.2'
-}
-// ...
-```
+See the packages for the latest version. Do not use JCenter. It will only have older versions.
