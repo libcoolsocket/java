@@ -186,7 +186,7 @@ public class CoolSocket implements ClientHandler
      */
     public void restart(int timeout) throws IOException, InterruptedException
     {
-        if (timeout <= 0)
+        if (timeout < 0)
             throw new IllegalStateException("Can't supply timeout as zero");
 
         stop(timeout);
@@ -353,7 +353,7 @@ public class CoolSocket implements ClientHandler
     /**
      * The class that holds the server related data for an active session.
      */
-    private class Session extends Thread
+    public class Session extends Thread
     {
         private final ConnectionManager connectionManager;
 

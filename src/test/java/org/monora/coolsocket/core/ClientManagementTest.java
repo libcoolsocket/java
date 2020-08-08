@@ -1,6 +1,7 @@
 package org.monora.coolsocket.core;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.monora.coolsocket.core.client.ClientHandler;
@@ -12,6 +13,7 @@ import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 
@@ -88,6 +90,58 @@ public class ClientManagementTest
             while (activeConnection.getSocket().isConnected())
                 activeConnection.receive();
         }
+    }
+
+    @Test
+    public void countClientConnectionsTest() throws IOException, InterruptedException
+    {
+        final String message = "Hey!";
+
+        CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    while (activeConnection.getSocket().isConnected())
+                        activeConnection.receive();
+                } catch (ClosedException ignored) {
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        CoolSocket.Session session = coolSocket.getSession();
+        ActiveConnection[] connections = new ActiveConnection[5];
+
+        for (int i = 0; i < connections.length; i++) {
+            ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+            connections[i] = activeConnection;
+
+            activeConnection.reply(message);
+        }
+
+        Assert.assertEquals("Number of connections should be same.", connections.length,
+                session.getConnectionManager().getActiveConnectionList().size());
+
+        Assert.assertEquals("Number of connections should be same.", connections.length,
+                session.getConnectionManager().getConnectionCountByAddress(InetAddress.getLocalHost()));
+
+        for (ActiveConnection activeConnection : connections) {
+            try {
+                activeConnection.closeSafely();
+                activeConnection.reply(message);
+            } catch (ClosedException ignored) {
+            }
+        }
+
+        coolSocket.stop();
+
+        Assert.assertEquals("Connections should zeroed", 0,
+                session.getConnectionManager().getActiveConnectionList().size());
     }
 
     public static class LoopClientHandler implements ClientHandler
