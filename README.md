@@ -1,3 +1,5 @@
+![Maven Package](https://github.com/libcoolsocket/java/workflows/Maven%20Package/badge.svg)
+
 # CoolSocket - Bidirectional TCP Socket Layer for JavaSE
 
 CoolSocket is a scalable approach to TCP socket communication. It can send just text, or it can send large bytes just 
