@@ -282,7 +282,10 @@ public class CoolSocket implements ClientHandler
     public void start(long timeout) throws IOException, InterruptedException
     {
         Session session = startAsynchronously();
-        session.waitUntilStateChange(timeout);
+
+        if (!session.isListening())
+            session.waitUntilStateChange(timeout);
+
         if (!session.isListening())
             throw new IOException("The server could not start listening.");
     }
@@ -323,8 +326,10 @@ public class CoolSocket implements ClientHandler
      */
     public void stop() throws InterruptedException
     {
-        Session session = stopAsynchronously();
-        session.waitUntilStateChange();
+        try {
+            stop(0);
+        } catch (IOException ignored) {
+        }
     }
 
     /**
@@ -345,7 +350,10 @@ public class CoolSocket implements ClientHandler
     public void stop(long timeout) throws InterruptedException, IOException
     {
         Session session = stopAsynchronously();
-        session.waitUntilStateChange(timeout);
+
+        if (session.isListening())
+            session.waitUntilStateChange(timeout);
+
         if (session.isListening())
             throw new IOException("The server could not stop listening.");
     }

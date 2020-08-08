@@ -15,7 +15,7 @@ public class CancelledException extends SessionException
      */
     public CancelledException(String message, boolean remoteRequested)
     {
-        super();
+        super(message);
         this.remoteRequested = remoteRequested;
     }
 }

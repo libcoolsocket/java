@@ -55,7 +55,7 @@ public class DefaultConnectionManager implements ConnectionManager
             try {
                 // Shutdown the threads.
                 executorService.shutdown();
-                // Wait for them to quit 10 seconds at most.
+                // Wait for them to quit for 10 seconds at most.
                 executorService.awaitTermination(10, TimeUnit.SECONDS);
             } catch (InterruptedException ignored) {
             }

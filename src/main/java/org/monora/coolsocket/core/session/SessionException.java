@@ -10,8 +10,13 @@ import java.io.IOException;
  */
 public class SessionException extends IOException
 {
-    public SessionException()
+    /**
+     * Create a new exception instance.
+     *
+     * @param message The explanation for this error.
+     */
+    public SessionException(String message)
     {
-        super();
+        super(message);
     }
 }
