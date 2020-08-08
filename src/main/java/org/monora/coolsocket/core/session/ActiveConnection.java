@@ -381,11 +381,11 @@ public class ActiveConnection implements Closeable
     {
         boolean chunked = description.flags.chunked();
 
-        if (description.available <= 0) {
+        if (description.nextAvailable <= 0) {
             readState(description);
-            description.available = readSize(description.internalBuffer);
+            description.nextAvailable = readSize(description.internalBuffer);
 
-            if (description.available == CoolSocket.LENGTH_UNSPECIFIED) {
+            if (description.nextAvailable == CoolSocket.LENGTH_UNSPECIFIED) {
                 if (description.hasAvailable())
                     throw new SizeLimitFellBehindException("Remote closed the connection before reading the data in " +
                             "full.", description.totalLength, description.consumedLength);
@@ -399,7 +399,7 @@ public class ActiveConnection implements Closeable
 
         if (len != -1) {
             description.consumedLength += len;
-            description.available -= len;
+            description.nextAvailable -= len;
 
             if (chunked)
                 description.totalLength += len;
@@ -975,7 +975,7 @@ public class ActiveConnection implements Closeable
             writeSize(CoolSocket.LENGTH_UNSPECIFIED);
         }
 
-        description.available = CoolSocket.LENGTH_UNSPECIFIED;
+        description.nextAvailable = CoolSocket.LENGTH_UNSPECIFIED;
 
         getOutputStreamPriv().flush();
 
@@ -1086,7 +1086,7 @@ public class ActiveConnection implements Closeable
          * <p>
          * This will be used by the read operations so that we can know when the remote sends {@link ByteBreak}.
          */
-        protected long available;
+        protected long nextAvailable;
 
         /**
          * For internal read/write operations.
@@ -1152,7 +1152,7 @@ public class ActiveConnection implements Closeable
          */
         public long available()
         {
-            return flags.chunked() ? available : (totalLength <= consumedLength ? CoolSocket.LENGTH_UNSPECIFIED
+            return flags.chunked() ? nextAvailable : (totalLength <= consumedLength ? CoolSocket.LENGTH_UNSPECIFIED
                     : totalLength - consumedLength);
         }
 
