@@ -6,6 +6,7 @@ import org.monora.coolsocket.core.response.SizeLimitExceededException;
 import org.monora.coolsocket.core.response.SizeLimitFellBehindException;
 import org.monora.coolsocket.core.response.SizeMismatchException;
 import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.DescriptionClosedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -52,20 +53,21 @@ public class DataTransactionTest
         coolSocket.start();
 
         int len;
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
-        ActiveConnection.Description description = activeConnection.readBegin();
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.readBegin();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        while ((len = activeConnection.read(description)) != -1)
-            outputStream.write(description.buffer, 0, len);
+            while ((len = activeConnection.read(description)) != -1)
+                outputStream.write(description.buffer, 0, len);
 
-        Assert.assertEquals("The messages should match.", message, outputStream.toString());
+            Assert.assertEquals("The messages should match.", message, outputStream.toString());
 
-        // do the above with shortcuts
-        Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
+            // do the above with shortcuts
+            Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
+        } finally {
+            coolSocket.stop();
+        }
 
-        activeConnection.close();
-        coolSocket.stop();
     }
 
     @Test(expected = SizeMismatchException.class)
@@ -306,6 +308,100 @@ public class DataTransactionTest
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
             Assert.assertEquals("The messages should match.", message,
                     activeConnection.receive().getAsString());
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test(expected = DescriptionClosedException.class)
+    public void descriptionUnusableAfterFinishedFixed() throws IOException, InterruptedException
+    {
+        final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
+        CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    activeConnection.receive();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length);
+            activeConnection.write(description, bytes);
+            activeConnection.writeEnd(description);
+
+            activeConnection.write(description, bytes);
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test(expected = DescriptionClosedException.class)
+    public void descriptionUnusableAfterFinishedChunked() throws IOException, InterruptedException
+    {
+        final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
+        CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    activeConnection.receive();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.writeBegin(0);
+            activeConnection.write(description, bytes);
+            activeConnection.writeEnd(description);
+
+            activeConnection.write(description, bytes);
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test(expected = DescriptionClosedException.class)
+    public void descriptionUnusableAfterFinishedFixedRead() throws IOException, InterruptedException
+    {
+        final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
+        CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    activeConnection.reply(0, bytes);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.readBegin();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+            int len;
+            while ((len = activeConnection.read(description)) != -1) {
+                outputStream.write(description.buffer, 0, len);
+            }
+
+            activeConnection.read(description);
         } finally {
             coolSocket.stop();
         }

@@ -311,11 +311,14 @@ public class ActiveConnection implements Closeable
         return socket;
     }
 
-    public void handleByteBreak(Description description, boolean localSending) throws IOException
+    /**
+     * Do a byte break with the remote where the state of the both sides is exchanged and applied.
+     *
+     * @param localSending True if this call is made when sending.
+     * @throws IOException If an IO error occurs, or the operation is cancelled or the server is closed safely.
+     */
+    public void handleByteBreak(boolean localSending) throws IOException
     {
-        if (!description.hasAvailable())
-            throw new DescriptionClosedException("This description is closed.", description);
-
         InfoExchange exchange = null;
         ByteBreak local;
         ByteBreak remote;
@@ -351,19 +354,18 @@ public class ActiveConnection implements Closeable
             case Cancel:
                 throw new CancelledException("This operation has been cancelled.", !local.equals(ByteBreak.Cancel));
             case InfoExchange:
-                if (localSending)
-                    exchangeSend(exchangeReceive());
-                else {
+                if (localSending) {
                     exchangeSend(exchange == null ? InfoExchange.Dummy : exchange);
                     exchangeReceive();
-                }
+                } else
+                    exchangeSend(exchangeReceive());
                 break;
             case None:
             default:
                 return;
         }
 
-        handleByteBreak(description, localSending);
+        handleByteBreak(localSending);
     }
 
     /**
@@ -377,18 +379,22 @@ public class ActiveConnection implements Closeable
      */
     public int read(Description description) throws IOException
     {
-        byte[] buffer = description.buffer;
         boolean chunked = description.flags.chunked();
 
         if (description.available <= 0) {
-            handleByteBreak(description, false);
-            description.available = readSize(buffer);
+            readState(description);
+            description.available = readSize(description.internalBuffer);
+
+            if (description.available == CoolSocket.LENGTH_UNSPECIFIED) {
+                if (description.hasAvailable())
+                    throw new SizeLimitFellBehindException("Remote closed the connection before reading the data in " +
+                            "full.", description.totalLength, description.consumedLength);
+                else
+                    return CoolSocket.LENGTH_UNSPECIFIED;
+            }
         }
 
-        if (!description.hasAvailable())
-            return CoolSocket.LENGTH_UNSPECIFIED;
-
-        int len = getInputStreamPriv().read(buffer, 0, (int) Math.min(description.buffer.length,
+        int len = getInputStreamPriv().read(description.buffer, 0, (int) Math.min(description.buffer.length,
                 description.available()));
 
         if (len != -1) {
@@ -398,8 +404,7 @@ public class ActiveConnection implements Closeable
             if (chunked)
                 description.totalLength += len;
         } else if (!chunked && description.hasAvailable()) {
-            throw new SizeLimitFellBehindException("Remote closed the connection before reading the data in full.",
-                    description.totalLength, description.consumedLength);
+            throw new SocketException("Socket closed prematurely.");
         }
 
         return len;
@@ -440,9 +445,9 @@ public class ActiveConnection implements Closeable
     public Description readBegin(byte[] buffer) throws IOException
     {
         Flags flags = new Flags(readFlags(buffer));
-        Description description = new Description(flags, readSize(buffer), buffer);
+        Description description = new Description(flags, readInteger(buffer), readSize(buffer), buffer);
 
-        handleByteBreak(description, false);
+        readState(description);
 
         return description;
     }
@@ -540,6 +545,19 @@ public class ActiveConnection implements Closeable
     protected long readLong(byte[] buffer) throws IOException
     {
         return readExactIntoBuffer(buffer, Long.BYTES).getLong();
+    }
+
+    /**
+     * Read the state of the remote and send ours during the lifecycle of a read/write operation
+     *
+     * @param description The description object that represents the operation.
+     * @throws IOException If an IO error occurs, or there is cancel, close request, or the description has issues,
+     *                     i.e. closed or invalid.
+     */
+    public void readState(Description description) throws IOException
+    {
+        verifyDescription(description, false);
+        handleByteBreak(false);
     }
 
     /**
@@ -758,6 +776,35 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Verify the description by communicating with the remote.
+     * <p>
+     * The remote must be ready for this also.
+     *
+     * @param description  The description to verify.
+     * @param localSending True if this side is sending.
+     * @throws IOException If the description is invalid, or not matching
+     */
+    public void verifyDescription(Description description, boolean localSending) throws IOException
+    {
+        if (!description.hasAvailable())
+            throw new DescriptionClosedException("This description is closed.", description);
+
+        int remoteOperationId;
+
+        if (localSending) {
+            remoteOperationId = readInteger(description.internalBuffer);
+            writeInteger(description.operationId);
+        } else {
+            writeInteger(description.operationId);
+            remoteOperationId = readInteger(description.internalBuffer);
+        }
+
+        if (description.operationId != remoteOperationId)
+            throw new DescriptionMismatchException("The remote description is different than ours.", description,
+                    remoteOperationId);
+    }
+
+    /**
      * Write to the remote.
      * <p>
      * The offset defaults to 0, and the length defaults to the length of byte array.
@@ -815,7 +862,7 @@ public class ActiveConnection implements Closeable
         if (length < 0 || offset + length > bytes.length)
             throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
-        handleByteBreak(description, true);
+        writeState(description);
 
         boolean chunked = description.flags.chunked();
         int lengthActual = chunked ? length : (int) Math.min(length, description.available());
@@ -881,12 +928,14 @@ public class ActiveConnection implements Closeable
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
         byte[] buffer = new byte[8096];
+        int operationId = (int) (Integer.MAX_VALUE * Math.random());
 
         writeFlags(flags);
+        writeInteger(operationId);
         writeSize(totalLength);
 
-        Description description = new Description(flags, totalLength, buffer);
-        handleByteBreak(description, true);
+        Description description = new Description(flags, operationId, totalLength, buffer);
+        writeState(description);
 
         return description;
     }
@@ -922,7 +971,7 @@ public class ActiveConnection implements Closeable
     public synchronized void writeEnd(Description description) throws IOException
     {
         if (description.flags.chunked() || description.hasAvailable()) {
-            handleByteBreak(description, true);
+            writeState(description);
             writeSize(CoolSocket.LENGTH_UNSPECIFIED);
         }
 
@@ -982,6 +1031,19 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Read the state of the remote and send ours during the lifecycle of a read/write operation
+     *
+     * @param description The description object that represents the operation.
+     * @throws IOException If an IO error occurs, or there is cancel, close request, or the description has issues,
+     *                     i.e. closed or invalid.
+     */
+    public void writeState(Description description) throws IOException
+    {
+        verifyDescription(description, true);
+        handleByteBreak(true);
+    }
+
+    /**
      * A description explains how an read/write operation will be handled, and how much it has progressed.
      * <p>
      * This also holds internal buffer so that the same buffer can be used without occupying more space on the memory.
@@ -995,7 +1057,13 @@ public class ActiveConnection implements Closeable
         public final Flags flags;
 
         /**
-         * The internal buffer that is used to copy bytes as we read from/write to the remote.
+         * The unique integer representing this description which is used verify that read and write operation
+         * is made true the same owner
+         */
+        public final int operationId;
+
+        /**
+         * The buffer that is used to copy bytes as we read from/write to the remote.
          */
         public final byte[] buffer;
 
@@ -1021,27 +1089,34 @@ public class ActiveConnection implements Closeable
         protected long available;
 
         /**
+         * For internal read/write operations.
+         */
+        private final byte[] internalBuffer = new byte[8];
+
+        /**
          * Create a new instance.
          * <p>
          * The flags are encapsulated in a {@link Flags} instance.
          *
          * @param flags       The long integer representing the flags.
+         * @param operationId The unique identifier for this operation.
          * @param totalLength The total length of the operation.
          * @param buffer      To cache the read or written data.
          */
-        public Description(long flags, long totalLength, byte[] buffer)
+        public Description(long flags, int operationId, long totalLength, byte[] buffer)
         {
-            this(new Flags(flags), totalLength, buffer);
+            this(new Flags(flags), operationId, totalLength, buffer);
         }
 
         /**
          * Create a new instance.
          *
          * @param flags       The flags for this operation.
+         * @param operationId The unique identifier for this operation.
          * @param totalLength The total length of the operation.
          * @param buffer      To cache the read or written data.
          */
-        public Description(Flags flags, long totalLength, byte[] buffer)
+        public Description(Flags flags, int operationId, long totalLength, byte[] buffer)
         {
             if (flags == null)
                 throw new NullPointerException("Flags cannot be null.");
@@ -1056,6 +1131,7 @@ public class ActiveConnection implements Closeable
                 throw new IllegalArgumentException();
 
             this.flags = flags;
+            this.operationId = operationId;
             this.totalLength = totalLength;
             this.buffer = new byte[8096];
         }

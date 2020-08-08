@@ -17,7 +17,7 @@ public class DefaultConnectionManager implements ConnectionManager
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
-    private boolean waitForExit = true;
+    private boolean waitForExit = false;
 
     private int closingContract = CLOSING_CONTRACT_DO_NOTHING;
 

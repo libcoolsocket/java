@@ -52,6 +52,32 @@ public class StartStopTest
         server.start();
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void startThrowsWhenAlreadyStarted() throws IOException, InterruptedException
+    {
+        testServer.start();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void stopThrowsWhenAlreadyStopped() throws Exception
+    {
+        try {
+            testServer.stop();
+        } catch (Exception e) {
+            throw new Exception("Could not stop the server first.");
+        }
+
+        try {
+            testServer.stop();
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new Exception("Something else went wrong.");
+        } finally {
+            testServer.start();
+        }
+    }
+
     private static class TestServer extends CoolSocket
     {
         public TestServer()
