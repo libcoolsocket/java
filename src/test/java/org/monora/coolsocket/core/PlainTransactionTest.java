@@ -112,6 +112,8 @@ public class PlainTransactionTest
                 for (int i = 0; i < loops; i++) {
                     try {
                         activeConnection.receive();
+                        activeConnection.receive();
+                        activeConnection.reply(message);
                         activeConnection.reply(message);
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -126,6 +128,9 @@ public class PlainTransactionTest
 
         for (int i = 0; i < loops; i++) {
             activeConnection.reply(message);
+            activeConnection.reply(message);
+            Assert.assertEquals("The message should match with the original.", message,
+                    activeConnection.receive().getAsString());
             Assert.assertEquals("The message should match with the original.", message,
                     activeConnection.receive().getAsString());
         }
