@@ -12,6 +12,9 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * This class connects to both clients and servers. This accepts a valid socket instance, and writes to and reads from
@@ -24,6 +27,10 @@ public class ActiveConnection implements Closeable
     private OutputStream privOutputStream;
 
     private InputStream privInputStream;
+
+    private WritableByteChannel writableByteChannel;
+
+    private ReadableByteChannel readableByteChannel;
 
     private int internalCacheLimit = 256 * 1024;
 
@@ -168,7 +175,7 @@ public class ActiveConnection implements Closeable
     {
         Socket socket = new Socket();
         socket.bind(null);
-        socket.connect(socketAddress);
+        socket.connect(socketAddress, readTimeout);
 
         return new ActiveConnection(socket, readTimeout);
     }
@@ -181,26 +188,26 @@ public class ActiveConnection implements Closeable
      * For instance, the remote may send us the protocol version using the {@link InfoExchange#ProtocolVersion} value.
      * After that we read the next integer that we use as the value or the length depending on the request type.
      *
+     * @param description The description that owns the read call.
      * @return The value that was executed.
      * @throws IOException If an IO error occurs.
      */
-    private InfoExchange exchangeReceive() throws IOException
+    private InfoExchange exchangeReceive(Description description) throws IOException
     {
-        byte[] buffer = new byte[8];
-        int featureId = readInteger(buffer);
-        InfoExchange infoExchange = InfoExchange.from(featureId);
-        int maxLength = infoExchange.maxLength;
-        int length = readInteger(buffer);
-        if (length > maxLength)
+        readOrFail(description.byteBuffer, Integer.BYTES * 2);
+        InfoExchange infoExchange = InfoExchange.from(description.byteBuffer.getInt());
+        int length = description.byteBuffer.getInt();
+        if (length > infoExchange.maxLength)
             throw new SizeLimitExceededException("The remote reported size for " + infoExchange + "is too large.",
-                    maxLength, length);
+                    infoExchange.maxLength, length);
 
         switch (infoExchange) {
-            case Dummy:
-                readExactIntoBuffer(new byte[length], length);
-                break;
             case ProtocolVersion:
-                protocolVersion = readInteger(buffer);
+                readOrFail(description.byteBuffer, length);
+                protocolVersion = description.byteBuffer.getInt();
+                break;
+            case Dummy:
+            default:
         }
 
         return infoExchange;
@@ -209,28 +216,27 @@ public class ActiveConnection implements Closeable
     /**
      * Send the info that was requested by us or by the remote.
      *
+     * @param description  The description that owns the read call.
      * @param infoExchange The type info that is being exchanged.
      * @throws IOException If an IO error occurs.
      */
-    private void exchangeSend(InfoExchange infoExchange) throws IOException
+    private void exchangeSend(Description description, InfoExchange infoExchange) throws IOException
     {
-        writeInteger(infoExchange.ordinal());
+        description.byteBuffer.clear();
+        description.byteBuffer.putInt(infoExchange.ordinal());
 
-        int length;
-        byte[] bytes;
         switch (infoExchange) {
             case ProtocolVersion:
-                length = Integer.BYTES;
-                bytes = ByteBuffer.allocate(length).putInt(Config.PROTOCOL_VERSION).array();
+                description.byteBuffer.putInt(Integer.BYTES);
+                description.byteBuffer.putInt(Config.PROTOCOL_VERSION);
                 break;
             case Dummy:
             default:
-                bytes = "Dummy, dum dum!".getBytes();
-                length = bytes.length;
+                description.byteBuffer.putInt(0);
         }
 
-        writeInteger(length);
-        getOutputStreamPriv().write(bytes);
+        description.byteBuffer.flip();
+        getWritableByteChannel().write(description.byteBuffer);
     }
 
     /**
@@ -302,6 +308,19 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Returns the byte channel for the input stream of the socket connection.
+     *
+     * @return The readable byte channel instance.
+     * @throws IOException If the given input stream fails open when accessed for the first time.
+     */
+    protected ReadableByteChannel getReadableByteChannel() throws IOException
+    {
+        if (readableByteChannel == null)
+            readableByteChannel = Channels.newChannel(getInputStreamPriv());
+        return readableByteChannel;
+    }
+
+    /**
      * Get the socket instance that represents the remote.
      *
      * @return The socket instance.
@@ -312,64 +331,83 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Do a byte break with the remote where the state of the both sides is exchanged and applied.
+     * Return the writable byte channel that is wrapped around the output stream that belongs to the socket connection.
      *
-     * @param localSending True if this call is made when sending.
-     * @throws IOException If an IO error occurs, or the operation is cancelled or the server is closed safely.
+     * @return the writable byte channel.
+     * @throws IOException If the output stream fails to open when accessed for the first time.
      */
-    public void handleByteBreak(boolean localSending) throws IOException
+    protected WritableByteChannel getWritableByteChannel() throws IOException
     {
+        if (writableByteChannel == null)
+            writableByteChannel = Channels.newChannel(getOutputStreamPriv());
+        return writableByteChannel;
+    }
+
+    /**
+     * Do a byte break with the remote where the state of the writing side is applied and executed on both sides.
+     *
+     * @param description The description object that represents the operation.
+     * @param write       True if this call is made when sending.
+     * @throws IOException If an IO error occurs, or the operation is cancelled, the description is invalid, or the
+     *                     server has closed safely.
+     */
+    public void handleByteBreak(Description description, boolean write) throws IOException
+    {
+        if (!description.hasAvailable())
+            throw new DescriptionClosedException("This description is closed.", description);
+
         InfoExchange exchange = null;
-        ByteBreak local;
-        ByteBreak remote;
-        ByteBreak chosen;
+        ByteBreak byteBreak;
 
-        if (closeRequested())
-            local = ByteBreak.Close;
-        else if (cancelled())
-            local = ByteBreak.Cancel;
-        else if (protocolVersion == 0) {
-            local = ByteBreak.InfoExchange;
-            exchange = InfoExchange.ProtocolVersion;
-        } else
-            local = ByteBreak.None;
+        if (write) {
+            if (closeRequested())
+                byteBreak = ByteBreak.Close;
+            else if (cancelled())
+                byteBreak = ByteBreak.Cancel;
+            else if (protocolVersion == 0) {
+                byteBreak = ByteBreak.InfoExchange;
+                exchange = InfoExchange.ProtocolVersion;
+            } else
+                byteBreak = ByteBreak.None;
 
-        if (localSending) {
-            writeByteBreak(local);
-            remote = readByteBreak();
-            chosen = ByteBreak.chooseOver(local, remote);
+            description.byteBuffer.clear();
+            description.byteBuffer.putInt(description.operationId)
+                    .putInt(byteBreak.ordinal())
+                    .flip();
+            getWritableByteChannel().write(description.byteBuffer);
         } else {
-            remote = readByteBreak();
-            chosen = ByteBreak.chooseOver(remote, local);
-            writeByteBreak(chosen);
+            readOrFail(description.byteBuffer, Integer.BYTES * 2);
+            int remoteOperationId = description.byteBuffer.getInt();
+            byteBreak = ByteBreak.from(description.byteBuffer.getInt());
+            if (description.operationId != remoteOperationId)
+                throw new DescriptionMismatchException("The remote description is different than ours.", description,
+                        remoteOperationId);
         }
 
-        switch (chosen) {
+        switch (byteBreak) {
             case Close:
                 try {
                     close();
                 } catch (Exception ignored) {
                 }
-                throw new ClosedException("The connection closed.", !local.equals(ByteBreak.Close));
+                throw new ClosedException("The connection closed.", !write);
             case Cancel:
-                throw new CancelledException("This operation has been cancelled.", !local.equals(ByteBreak.Cancel));
+                throw new CancelledException("This operation has been cancelled.", !write);
             case InfoExchange:
-                if (localSending) {
-                    exchangeSend(exchange == null ? InfoExchange.Dummy : exchange);
-                    exchangeReceive();
+                if (write) {
+                    exchangeSend(description, exchange);
+                    exchangeReceive(description);
                 } else
-                    exchangeSend(exchangeReceive());
+                    exchangeSend(description, exchangeReceive(description));
                 break;
             case None:
             default:
-                return;
         }
-
-        handleByteBreak(localSending);
     }
 
     /**
-     * Read from the remote. This reads into the {@link Description#buffer} and returns the length of the bytes read.
+     * Read from the remote. This reads into the {@link Description#byteBuffer} and returns the length of the bytes
+     * read.
      * <p>
      * This should be called after the {@link #readBegin()}.
      *
@@ -383,7 +421,8 @@ public class ActiveConnection implements Closeable
 
         if (description.nextAvailable <= 0) {
             readState(description);
-            description.nextAvailable = readSize(description.internalBuffer);
+            readOrFail(description.byteBuffer, Long.BYTES);
+            description.nextAvailable = description.byteBuffer.getLong();
 
             if (description.nextAvailable == CoolSocket.LENGTH_UNSPECIFIED) {
                 if (description.hasAvailable())
@@ -394,20 +433,19 @@ public class ActiveConnection implements Closeable
             }
         }
 
-        int len = getInputStreamPriv().read(description.buffer, 0, (int) Math.min(description.buffer.length,
-                description.available()));
+        description.byteBuffer.clear();
+        int length = (int) Math.min(description.byteBuffer.remaining(), description.nextAvailable);
+        description.byteBuffer.limit(length);
+        length = getReadableByteChannel().read(description.byteBuffer);
+        description.byteBuffer.flip();
 
-        if (len != -1) {
-            description.consumedLength += len;
-            description.nextAvailable -= len;
+        description.consumedLength += length;
+        description.nextAvailable -= length;
 
-            if (chunked)
-                description.totalLength += len;
-        } else if (!chunked && description.hasAvailable()) {
-            throw new SocketException("Socket closed prematurely.");
-        }
+        if (chunked)
+            description.totalLength += length;
 
-        return len;
+        return length;
     }
 
     /**
@@ -423,7 +461,7 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Prepare for an operation and retrieve the information about that.
+     * Prepare for an operation and retrieve the information about it.
      * <p>
      * This will receive the information from the remote and apply the needed values to the description object that
      * is produced.
@@ -444,107 +482,33 @@ public class ActiveConnection implements Closeable
      */
     public Description readBegin(byte[] buffer) throws IOException
     {
-        Flags flags = new Flags(readFlags(buffer));
-        Description description = new Description(flags, readInteger(buffer), readSize(buffer), buffer);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(buffer);
+        readOrFail(byteBuffer, Long.BYTES * 2 + Integer.BYTES);
+
+        Description description = new Description(byteBuffer.getLong(), byteBuffer.getInt(), byteBuffer.getLong(),
+                byteBuffer);
 
         readState(description);
+        writeState(description);
 
         return description;
     }
 
     /**
-     * @return The read byte.
-     * @throws IOException If an IO error occurs.
-     */
-    protected int readByte() throws IOException
-    {
-        return getInputStreamPriv().read();
-    }
-
-    /**
-     * Read the byte break value.
+     * Read the given length much of data or fail with {@link SocketException} assuming the socket is closed.
      *
-     * @return The read byte break value.
-     * @throws IOException If an IO error occurs.
+     * @param byteBuffer To read into. The byte buffer is cleared before being used.
+     * @param length     The data length that will read from the remote.
+     * @throws IOException If an IO error occurs, i.e. fails to read the asked data length, or the given length is
+     *                     larger than the byte buffer.
      */
-    protected ByteBreak readByteBreak() throws IOException
+    protected void readOrFail(ByteBuffer byteBuffer, int length) throws IOException
     {
-        return ByteBreak.from(readByte());
-    }
-
-    /**
-     * Read the exact length of data. This will not return unless it reads the data that is the given length long.
-     *
-     * @param buffer To read into.
-     * @param length The length of the data to read.
-     * @throws IOException If an IO error occurs.
-     * @see #readExactIntoBuffer(byte[], int)
-     */
-    protected void readExact(byte[] buffer, int length) throws IOException
-    {
-        if (length < 1 || length > buffer.length)
-            throw new IndexOutOfBoundsException("Length cannot be a negative value, or larger than the buffer.");
-
-        int read = 0;
-        int len;
-
-        while ((len = getInputStreamPriv().read(buffer, read, length - read)) != -1 && read < length)
-            read += len;
-
-        if (read < length)
-            throw new SocketException("Target closed the connection prematurely.");
-    }
-
-    /**
-     * This will read the exact length of data from the remote and encapsulate it in {@link ByteBuffer} wrapper.
-     * Similar to {@link #readExact(byte[], int)}, this will not return unless it reads that much of data.
-     *
-     * @param buffer To read into.
-     * @param length The length of the data to read.
-     * @return The byte buffer object that represents the value.
-     * @throws IOException If an IO occurs.
-     * @see #readExact(byte[], int)
-     */
-    protected ByteBuffer readExactIntoBuffer(byte[] buffer, int length) throws IOException
-    {
-        readExact(buffer, length);
-        return ByteBuffer.wrap(buffer, 0, length);
-    }
-
-    /**
-     * Read the flags value which will then be encapsulated by {@link Flags} to analyze the state of the remote.
-     *
-     * @param buffer To read into.
-     * @return The read flags value in the long integer form.
-     * @throws IOException If an IO error occurs.
-     */
-    protected long readFlags(byte[] buffer) throws IOException
-    {
-        return readLong(buffer);
-    }
-
-    /**
-     * Read integer from the remote.
-     *
-     * @param buffer The read into.
-     * @return The read integer.
-     * @throws IOException If an IO error occurs.
-     */
-    protected int readInteger(byte[] buffer) throws IOException
-    {
-        return readExactIntoBuffer(buffer, Integer.BYTES).getInt();
-    }
-
-    /**
-     * Read long integer from the remote.
-     *
-     * @param buffer To read into.
-     * @return The read long integer.
-     * @throws IOException If an IO error occurs.
-     */
-    protected long readLong(byte[] buffer) throws IOException
-    {
-        return readExactIntoBuffer(buffer, Long.BYTES).getLong();
+        byteBuffer.clear();
+        byteBuffer.limit(length);
+        if (getReadableByteChannel().read(byteBuffer) != length)
+            throw new SocketException("Socket is closed or could not read " + length + " data in length.");
+        byteBuffer.flip();
     }
 
     /**
@@ -556,20 +520,7 @@ public class ActiveConnection implements Closeable
      */
     public void readState(Description description) throws IOException
     {
-        verifyDescription(description, false);
-        handleByteBreak(false);
-    }
-
-    /**
-     * Read size from the remote.
-     *
-     * @param buffer To read into.
-     * @return The read size that is in long integer format.
-     * @throws IOException If an IO error occurs.
-     */
-    protected long readSize(byte[] buffer) throws IOException
-    {
-        return readLong(buffer);
+        handleByteBreak(description, false);
     }
 
     /**
@@ -630,7 +581,6 @@ public class ActiveConnection implements Closeable
      * @see #read(Description)
      * @see #writeBegin(long, long)
      * @see #write(Description, byte[])
-     * @see #write(Description, int, int)
      * @see #write(Description, byte[], int, int)
      * @see #writeEnd(Description)
      * @see #write(Description, InputStream)
@@ -639,6 +589,7 @@ public class ActiveConnection implements Closeable
     {
         int len;
         Description description = readBegin();
+        WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
 
         do {
             len = read(description);
@@ -648,7 +599,7 @@ public class ActiveConnection implements Closeable
                         description.consumedLength);
 
             if (len > 0)
-                outputStream.write(description.buffer, 0, len);
+                writableByteChannel.write(description.byteBuffer);
         } while (description.hasAvailable());
 
         return new Response(getSocket().getRemoteSocketAddress(), description.flags.all(), description.totalLength,
@@ -776,35 +727,6 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Verify the description by communicating with the remote.
-     * <p>
-     * The remote must be ready for this also.
-     *
-     * @param description  The description to verify.
-     * @param localSending True if this side is sending.
-     * @throws IOException If the description is invalid, or not matching
-     */
-    public void verifyDescription(Description description, boolean localSending) throws IOException
-    {
-        if (!description.hasAvailable())
-            throw new DescriptionClosedException("This description is closed.", description);
-
-        int remoteOperationId;
-
-        if (localSending) {
-            remoteOperationId = readInteger(description.internalBuffer);
-            writeInteger(description.operationId);
-        } else {
-            writeInteger(description.operationId);
-            remoteOperationId = readInteger(description.internalBuffer);
-        }
-
-        if (description.operationId != remoteOperationId)
-            throw new DescriptionMismatchException("The remote description is different than ours.", description,
-                    remoteOperationId);
-    }
-
-    /**
      * Write to the remote.
      * <p>
      * The offset defaults to 0, and the length defaults to the length of byte array.
@@ -817,22 +739,6 @@ public class ActiveConnection implements Closeable
     public void write(Description description, byte[] bytes) throws IOException
     {
         write(description, bytes, 0, bytes.length);
-    }
-
-    /**
-     * Write to the remote.
-     * <p>
-     * The buffer defaults to the internal buffer {@link Description#buffer}.
-     *
-     * @param description The description object representing the operation.
-     * @param offset      The bytes to skip reading from the bytes.
-     * @param length      The length of how much to read from the bytes.
-     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
-     * @see #write(Description, byte[], int, int)
-     */
-    public void write(Description description, int offset, int length) throws IOException
-    {
-        write(description, description.buffer, offset, length);
     }
 
     /**
@@ -851,7 +757,6 @@ public class ActiveConnection implements Closeable
      * @param length      The length of how much to read from the bytes.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      * @see #writeBegin(long, long)
-     * @see #write(Description, int, int)
      * @see #write(Description, byte[], int, int)
      * @see #write(Description, InputStream)
      * @see #writeEnd(Description)
@@ -872,8 +777,10 @@ public class ActiveConnection implements Closeable
 
         description.consumedLength += lengthActual;
 
-        writeSize(lengthActual);
-
+        description.byteBuffer.clear();
+        description.byteBuffer.putLong(lengthActual);
+        description.byteBuffer.flip();
+        getWritableByteChannel().write(description.byteBuffer);
         getOutputStreamPriv().write(bytes, offset, lengthActual);
 
         if (lengthActual < length)
@@ -892,15 +799,16 @@ public class ActiveConnection implements Closeable
     public synchronized void write(Description description, InputStream inputStream) throws IOException
     {
         int len;
-        while ((len = inputStream.read(description.buffer)) != -1) {
-            write(description, 0, len);
+        byte[] buffer = new byte[8096];
+        while ((len = inputStream.read(buffer)) != -1) {
+            write(description, buffer, 0, len);
         }
     }
 
     /**
      * Prepare for sending a response.
      * <p>
-     * The totoal length defaults to zero and the transmission type becomes chunked {@link Flags#FLAG_DATA_CHUNKED}.
+     * The total length defaults to zero and the transmission type becomes chunked {@link Flags#FLAG_DATA_CHUNKED}.
      *
      * @param flags The feature flags set for this part. It sets how the remote should handle the data it
      * @return The description object for this write operation.
@@ -927,39 +835,21 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
-        byte[] buffer = new byte[8096];
+        ByteBuffer byteBuffer = ByteBuffer.allocate(8096);
         int operationId = (int) (Integer.MAX_VALUE * Math.random());
+        Description description = new Description(flags, operationId, totalLength, byteBuffer);
+        byteBuffer.putLong(flags)
+                .putInt(operationId)
+                .putLong(totalLength)
+                .flip();
 
-        writeFlags(flags);
-        writeInteger(operationId);
-        writeSize(totalLength);
+        getWritableByteChannel().write(byteBuffer);
+        byteBuffer.clear();
 
-        Description description = new Description(flags, operationId, totalLength, buffer);
         writeState(description);
+        readState(description);
 
         return description;
-    }
-
-    /**
-     * Write byte.
-     *
-     * @param b The byte to write.
-     * @throws IOException If an IO error occurs.
-     */
-    protected void writeByte(int b) throws IOException
-    {
-        getOutputStreamPriv().write(b);
-    }
-
-    /**
-     * Write {@link ByteBreak} byte.
-     *
-     * @param byteBreak To write.
-     * @throws IOException If an IO error occurs.
-     */
-    protected void writeByteBreak(ByteBreak byteBreak) throws IOException
-    {
-        writeByte(byteBreak.ordinal());
     }
 
     /**
@@ -972,7 +862,10 @@ public class ActiveConnection implements Closeable
     {
         if (description.flags.chunked() || description.hasAvailable()) {
             writeState(description);
-            writeSize(CoolSocket.LENGTH_UNSPECIFIED);
+            description.byteBuffer.clear();
+            description.byteBuffer.putLong(CoolSocket.LENGTH_UNSPECIFIED);
+            description.byteBuffer.flip();
+            getWritableByteChannel().write(description.byteBuffer);
         }
 
         description.nextAvailable = CoolSocket.LENGTH_UNSPECIFIED;
@@ -980,54 +873,10 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().flush();
 
         if (!description.flags.chunked() && description.hasAvailable())
-            // If not chunked, then the size must be known, and if the sent size ia smaller than reported, this is an
+            // If not chunked, then the size must be known, and if the sent size is smaller than reported, this is an
             // error.
             throw new SizeLimitFellBehindException("The write operation should not be ended. The written byte length" +
                     " is below what was reported.", description.totalLength, description.consumedLength);
-    }
-
-    /**
-     * Write {@link Flags}.
-     *
-     * @param flags The long integer for the flags.
-     * @throws IOException If an IO error occurs.
-     */
-    protected void writeFlags(long flags) throws IOException
-    {
-        writeSize(flags);
-    }
-
-    /**
-     * Write an integer.
-     *
-     * @param value The integer to write.
-     * @throws IOException If an IO error occurs.
-     */
-    protected void writeInteger(int value) throws IOException
-    {
-        getOutputStreamPriv().write(ByteBuffer.allocate(Integer.BYTES).putInt(value).array());
-    }
-
-    /**
-     * Write a long integer.
-     *
-     * @param value The long integer to write.
-     * @throws IOException If an IO error occurs.
-     */
-    protected void writeLong(long value) throws IOException
-    {
-        getOutputStreamPriv().write(ByteBuffer.allocate(Long.BYTES).putLong(value).array());
-    }
-
-    /**
-     * Write a size that is in long integer format.
-     *
-     * @param size To write.
-     * @throws IOException If an IO error occurs.
-     */
-    protected void writeSize(long size) throws IOException
-    {
-        writeLong(size);
     }
 
     /**
@@ -1039,8 +888,7 @@ public class ActiveConnection implements Closeable
      */
     public void writeState(Description description) throws IOException
     {
-        verifyDescription(description, true);
-        handleByteBreak(true);
+        handleByteBreak(description, true);
     }
 
     /**
@@ -1063,9 +911,9 @@ public class ActiveConnection implements Closeable
         public final int operationId;
 
         /**
-         * The buffer that is used to copy bytes as we read from/write to the remote.
+         * The byte buffer that manages transferring bytes.
          */
-        public final byte[] buffer;
+        public final ByteBuffer byteBuffer;
 
         /**
          * This is filled as we read or write to the remote. If this is not a chunked transfer {@link Flags#chunked()},
@@ -1082,16 +930,17 @@ public class ActiveConnection implements Closeable
         protected long totalLength;
 
         /**
-         * The reported size from the remote that should be read before reading another size {@link #readSize(byte[])}.
+         * The reported size from the remote that should be read before reading another size.
          * <p>
          * This will be used by the read operations so that we can know when the remote sends {@link ByteBreak}.
          */
         protected long nextAvailable;
 
         /**
-         * For internal read/write operations.
+         * The internal transaction count that is used to decide when to write information bytes during read or the
+         * opposite.
          */
-        private final byte[] internalBuffer = new byte[8];
+        private int transactionCount;
 
         /**
          * Create a new instance.
@@ -1101,11 +950,11 @@ public class ActiveConnection implements Closeable
          * @param flags       The long integer representing the flags.
          * @param operationId The unique identifier for this operation.
          * @param totalLength The total length of the operation.
-         * @param buffer      To cache the read or written data.
+         * @param byteBuffer  To cache the read or written data.
          */
-        public Description(long flags, int operationId, long totalLength, byte[] buffer)
+        public Description(long flags, int operationId, long totalLength, ByteBuffer byteBuffer)
         {
-            this(new Flags(flags), operationId, totalLength, buffer);
+            this(new Flags(flags), operationId, totalLength, byteBuffer);
         }
 
         /**
@@ -1114,17 +963,17 @@ public class ActiveConnection implements Closeable
          * @param flags       The flags for this operation.
          * @param operationId The unique identifier for this operation.
          * @param totalLength The total length of the operation.
-         * @param buffer      To cache the read or written data.
+         * @param byteBuffer  To cache the read or written data.
          */
-        public Description(Flags flags, int operationId, long totalLength, byte[] buffer)
+        public Description(Flags flags, int operationId, long totalLength, ByteBuffer byteBuffer)
         {
             if (flags == null)
                 throw new NullPointerException("Flags cannot be null.");
 
-            if (buffer == null)
+            if (byteBuffer == null)
                 throw new NullPointerException("Buffer cannot be null.");
 
-            if (buffer.length < 8096)
+            if (byteBuffer.capacity() < 8096)
                 throw new BufferUnderflowException();
 
             if (totalLength < 0)
@@ -1133,7 +982,7 @@ public class ActiveConnection implements Closeable
             this.flags = flags;
             this.operationId = operationId;
             this.totalLength = totalLength;
-            this.buffer = new byte[8096];
+            this.byteBuffer = byteBuffer;
         }
 
         /**

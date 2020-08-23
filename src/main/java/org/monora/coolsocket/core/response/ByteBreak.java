@@ -80,9 +80,4 @@ public enum ByteBreak
 
         return values[ordinal];
     }
-
-    public static ByteBreak chooseOver(ByteBreak sending, ByteBreak receiving)
-    {
-        return sending.priority >= receiving.priority ? sending : receiving;
-    }
 }

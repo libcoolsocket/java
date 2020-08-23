@@ -13,6 +13,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 
 public class DataTransactionTest
 {
@@ -34,11 +36,7 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    int len;
-
-                    while ((len = inputStream.read(description.buffer)) != -1)
-                        activeConnection.write(description, 0, len);
-
+                    activeConnection.write(description, inputStream);
                     activeConnection.writeEnd(description);
 
                     // do the above with shortcuts
@@ -52,13 +50,13 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        int len;
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
             ActiveConnection.Description description = activeConnection.readBegin();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
 
-            while ((len = activeConnection.read(description)) != -1)
-                outputStream.write(description.buffer, 0, len);
+            while (activeConnection.read(description) != -1)
+                writableByteChannel.write(description.byteBuffer);
 
             Assert.assertEquals("The messages should match.", message, outputStream.toString());
 
@@ -80,7 +78,7 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    activeConnection.write(description, description.buffer);
+                    activeConnection.write(description, new byte[8096]);
                     activeConnection.writeEnd(description);
                 } catch (IOException ignored) {
 
@@ -104,6 +102,8 @@ public class DataTransactionTest
     @Test
     public void internalCacheLimitTest() throws InterruptedException, IOException
     {
+        final int size = 8096;
+
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
@@ -111,7 +111,7 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    activeConnection.write(description, description.buffer);
+                    activeConnection.write(description, new byte[size]);
                     activeConnection.writeEnd(description);
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -122,7 +122,7 @@ public class DataTransactionTest
         coolSocket.start();
 
         ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
-        activeConnection.setInternalCacheLimit(8196);
+        activeConnection.setInternalCacheLimit(size);
         activeConnection.receive();
         activeConnection.close();
         coolSocket.stop();
@@ -279,7 +279,7 @@ public class DataTransactionTest
         }
     }
 
-    @Test()
+    @Test
     public void sizeAboveDuringReadTest() throws IOException, InterruptedException
     {
         final String message = "Hello, World!";
@@ -291,12 +291,18 @@ public class DataTransactionTest
             {
                 try {
                     byte[] base = message.substring(0, message.length() - 1).getBytes();
-                    byte[] end = new byte[]{(byte) message.charAt(message.length() - 1), 0};
+                    byte[] end = message.substring(message.length() - 1).getBytes();
+                    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(base.length);
+                    byteArrayOutputStream.write(base);
+                    byteArrayOutputStream.write(end);
+
+
                     ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length);
                     activeConnection.write(description, base);
                     activeConnection.write(description, end);
                     activeConnection.writeEnd(description);
                 } catch (SizeLimitExceededException ignored) {
+                    ignored.printStackTrace();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -395,10 +401,10 @@ public class DataTransactionTest
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
             ActiveConnection.Description description = activeConnection.readBegin();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
 
-            int len;
-            while ((len = activeConnection.read(description)) != -1) {
-                outputStream.write(description.buffer, 0, len);
+            while (activeConnection.read(description) != -1) {
+                writableByteChannel.write(description.byteBuffer);
             }
 
             activeConnection.read(description);
