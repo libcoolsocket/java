@@ -15,7 +15,7 @@ public class CommunicationTest
     public void speedTest() throws IOException, InterruptedException
     {
         final int repeat = 100000;
-        final byte[] data = new byte[8096];
+        final byte[] data = new byte[8192];
 
         Arrays.fill(data, (byte) 2);
 
@@ -43,10 +43,7 @@ public class CommunicationTest
             long startTime = System.nanoTime();
             ActiveConnection.Description description = activeConnection.readBegin();
             do {
-                int len = activeConnection.read(description);
-                if (len > 0) {
-
-                }
+                activeConnection.read(description);
             } while (description.hasAvailable());
             System.out.println("It took: " + ((System.nanoTime() - startTime) / 1e9));
         } finally {

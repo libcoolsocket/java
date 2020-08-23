@@ -13,5 +13,5 @@ public final class Config
     /**
      *
      */
-    public static final int DATA_EXCHANGE_BYTE_SIZE = 8096;
+    public static final int DATA_EXCHANGE_BYTE_SIZE = 8192;
 }

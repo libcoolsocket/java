@@ -434,7 +434,7 @@ public class ActiveConnection implements Closeable
         }
 
         description.byteBuffer.clear();
-        int length = (int) Math.min(description.byteBuffer.remaining(), description.nextAvailable);
+        int length = (int) Math.min(description.byteBuffer.remaining(), Math.min(description.nextAvailable, description.available()));
         description.byteBuffer.limit(length);
         length = getReadableByteChannel().read(description.byteBuffer);
         description.byteBuffer.flip();
@@ -457,7 +457,7 @@ public class ActiveConnection implements Closeable
      */
     public Description readBegin() throws IOException
     {
-        return readBegin(new byte[8096]);
+        return readBegin(new byte[8192]);
     }
 
     /**
@@ -785,7 +785,7 @@ public class ActiveConnection implements Closeable
 
         if (lengthActual < length)
             throw new SizeLimitExceededException("The length requested exceeds the data size reported to the remote. " +
-                    "The requested size has been written to the remote, but this is an error that should handled.",
+                    "The expected size has been written to the remote, but this is an error that should handled.",
                     description.totalLength, description.consumedLength - lengthActual + length);
     }
 
@@ -799,7 +799,7 @@ public class ActiveConnection implements Closeable
     public synchronized void write(Description description, InputStream inputStream) throws IOException
     {
         int len;
-        byte[] buffer = new byte[8096];
+        byte[] buffer = new byte[8192];
         while ((len = inputStream.read(buffer)) != -1) {
             write(description, buffer, 0, len);
         }
@@ -835,7 +835,7 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(8096);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(8192);
         int operationId = (int) (Integer.MAX_VALUE * Math.random());
         Description description = new Description(flags, operationId, totalLength, byteBuffer);
         byteBuffer.putLong(flags)
@@ -973,7 +973,7 @@ public class ActiveConnection implements Closeable
             if (byteBuffer == null)
                 throw new NullPointerException("Buffer cannot be null.");
 
-            if (byteBuffer.capacity() < 8096)
+            if (byteBuffer.capacity() < 8192)
                 throw new BufferUnderflowException();
 
             if (totalLength < 0)

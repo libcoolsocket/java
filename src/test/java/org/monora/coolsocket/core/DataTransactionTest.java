@@ -78,7 +78,7 @@ public class DataTransactionTest
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    activeConnection.write(description, new byte[8096]);
+                    activeConnection.write(description, new byte[8192]);
                     activeConnection.writeEnd(description);
                 } catch (IOException ignored) {
 
@@ -102,7 +102,7 @@ public class DataTransactionTest
     @Test
     public void internalCacheLimitTest() throws InterruptedException, IOException
     {
-        final int size = 8096;
+        final int size = 8192;
 
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
@@ -292,17 +292,12 @@ public class DataTransactionTest
                 try {
                     byte[] base = message.substring(0, message.length() - 1).getBytes();
                     byte[] end = message.substring(message.length() - 1).getBytes();
-                    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(base.length);
-                    byteArrayOutputStream.write(base);
-                    byteArrayOutputStream.write(end);
-
 
                     ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length);
                     activeConnection.write(description, base);
                     activeConnection.write(description, end);
                     activeConnection.writeEnd(description);
                 } catch (SizeLimitExceededException ignored) {
-                    ignored.printStackTrace();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
