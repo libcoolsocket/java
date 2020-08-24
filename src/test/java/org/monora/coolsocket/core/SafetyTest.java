@@ -27,9 +27,7 @@ public class SafetyTest
 
                     // writes to 1st
                     activeConnection.write(description1, bytes);
-                } catch (DescriptionMismatchException ignored) {
-                } catch (IOException e) {
-                    e.printStackTrace();
+                } catch (IOException ignored) {
                 }
             }
         };

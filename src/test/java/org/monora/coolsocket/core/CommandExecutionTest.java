@@ -274,7 +274,7 @@ public class CommandExecutionTest
     @Test(expected = CancelledException.class)
     public void readerCancelsWhenReadingLargeChunksTest() throws InterruptedException, IOException
     {
-        final byte[] data = new byte[8196];
+        final byte[] data = new byte[8192];
         final CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
@@ -283,8 +283,8 @@ public class CommandExecutionTest
                 try {
                     ActiveConnection.Description description = activeConnection.readBegin();
                     while (description.hasAvailable()) {
-                        activeConnection.read(description);
                         activeConnection.cancel();
+                        activeConnection.read(description);
                     }
 
                 } catch (CancelledException ignored) {

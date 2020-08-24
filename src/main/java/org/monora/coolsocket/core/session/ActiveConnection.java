@@ -16,6 +16,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 
+import static org.monora.coolsocket.core.config.Config.DATA_EXCHANGE_BUFFER_SIZE;
+
 /**
  * This class connects to both clients and servers. This accepts a valid socket instance, and writes to and reads from
  * it.
@@ -179,8 +181,6 @@ public class ActiveConnection implements Closeable
 
         return new ActiveConnection(socket, readTimeout);
     }
-
-    // TODO: 8/6/20 Improve this
 
     /**
      * Retrieve the {@link InfoExchange} value from the remote and do the appropriate operation based on that.
@@ -420,7 +420,7 @@ public class ActiveConnection implements Closeable
         boolean chunked = description.flags.chunked();
 
         if (description.nextAvailable <= 0) {
-            if (description.transactionCount++ == 1000) {
+            if (description.transactionCount++ == 2048) {
                 writeState(description);
                 description.transactionCount = 0;
             } else
@@ -461,7 +461,7 @@ public class ActiveConnection implements Closeable
      */
     public Description readBegin() throws IOException
     {
-        return readBegin(new byte[8192]);
+        return readBegin(new byte[DATA_EXCHANGE_BUFFER_SIZE]);
     }
 
     /**
@@ -774,7 +774,7 @@ public class ActiveConnection implements Closeable
         if (length < 0 || offset + length > bytes.length)
             throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
-        if (description.transactionCount++ == 1000) {
+        if (description.transactionCount++ == 2048) {
             readState(description);
             description.transactionCount = 0;
         } else
@@ -810,7 +810,7 @@ public class ActiveConnection implements Closeable
     public synchronized void write(Description description, InputStream inputStream) throws IOException
     {
         int len;
-        byte[] buffer = new byte[8192];
+        byte[] buffer = new byte[DATA_EXCHANGE_BUFFER_SIZE];
         while ((len = inputStream.read(buffer)) != -1) {
             write(description, buffer, 0, len);
         }
@@ -846,7 +846,7 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(8192);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(DATA_EXCHANGE_BUFFER_SIZE);
         int operationId = (int) (Integer.MAX_VALUE * Math.random());
         Description description = new Description(flags, operationId, totalLength, byteBuffer);
         byteBuffer.putLong(flags)
@@ -984,7 +984,7 @@ public class ActiveConnection implements Closeable
             if (byteBuffer == null)
                 throw new NullPointerException("Buffer cannot be null.");
 
-            if (byteBuffer.capacity() < 8192)
+            if (byteBuffer.capacity() < DATA_EXCHANGE_BUFFER_SIZE)
                 throw new BufferUnderflowException();
 
             if (totalLength < 0)
