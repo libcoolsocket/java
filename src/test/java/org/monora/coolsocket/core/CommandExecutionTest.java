@@ -270,4 +270,41 @@ public class CommandExecutionTest
             coolSocket.stop();
         }
     }
+
+    @Test(expected = CancelledException.class)
+    public void readerCancelsWhenReadingLargeChunksTest() throws InterruptedException, IOException
+    {
+        final byte[] data = new byte[8196];
+        final CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    ActiveConnection.Description description = activeConnection.readBegin();
+                    while (description.hasAvailable()) {
+                        activeConnection.read(description);
+                        activeConnection.cancel();
+                    }
+
+                } catch (CancelledException ignored) {
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.writeBegin(0);
+            while (activeConnection.getSocket().isConnected()) {
+                activeConnection.write(description, data);
+            }
+
+            activeConnection.writeEnd(description);
+        } finally {
+            coolSocket.stop();
+        }
+    }
 }

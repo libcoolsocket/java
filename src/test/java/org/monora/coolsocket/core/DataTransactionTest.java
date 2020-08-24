@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
+import java.util.Arrays;
 
 public class DataTransactionTest
 {
@@ -403,6 +404,46 @@ public class DataTransactionTest
             }
 
             activeConnection.read(description);
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void largeChunkOfDataTest() throws IOException, InterruptedException
+    {
+        final int repeat = 100000;
+        final byte[] data = new byte[8192];
+
+        Arrays.fill(data, (byte) 2);
+
+        final CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    ActiveConnection.Description description = activeConnection.writeBegin(0,
+                            data.length * repeat);
+                    while (description.hasAvailable()) {
+                        activeConnection.write(description, data);
+                    }
+                    activeConnection.writeEnd(description);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            long startTime = System.nanoTime();
+            ActiveConnection.Description description = activeConnection.readBegin();
+            do {
+                activeConnection.read(description);
+            } while (description.hasAvailable());
+            System.out.println("It took: " + ((System.nanoTime() - startTime) / 1e9));
         } finally {
             coolSocket.stop();
         }

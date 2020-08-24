@@ -420,7 +420,11 @@ public class ActiveConnection implements Closeable
         boolean chunked = description.flags.chunked();
 
         if (description.nextAvailable <= 0) {
-            readState(description);
+            if (description.transactionCount++ == 1000) {
+                writeState(description);
+                description.transactionCount = 0;
+            } else
+                readState(description);
             readOrFail(description.byteBuffer, Long.BYTES);
             description.nextAvailable = description.byteBuffer.getLong();
 
@@ -468,9 +472,6 @@ public class ActiveConnection implements Closeable
      * <p>
      * After this method, you can use the {@link #read(Description)} method to start reading bytes for this operation.
      * <p>
-     * After the operation is finished, this will return -1 to indicate that it is done. This will not produce an
-     * error even if you keep reading.
-     * <p>
      * You can use one of the {@link #receive} methods to read all the bytes at once if you don't need show progress
      * information.
      *
@@ -506,8 +507,14 @@ public class ActiveConnection implements Closeable
     {
         byteBuffer.clear();
         byteBuffer.limit(length);
-        if (getReadableByteChannel().read(byteBuffer) != length)
+
+        while (byteBuffer.hasRemaining())
+            if (getReadableByteChannel().read(byteBuffer) == -1)
+                break;
+
+        if (byteBuffer.hasRemaining())
             throw new SocketException("Socket is closed or could not read " + length + " data in length.");
+
         byteBuffer.flip();
     }
 
@@ -767,7 +774,11 @@ public class ActiveConnection implements Closeable
         if (length < 0 || offset + length > bytes.length)
             throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
-        writeState(description);
+        if (description.transactionCount++ == 1000) {
+            readState(description);
+            description.transactionCount = 0;
+        } else
+            writeState(description);
 
         boolean chunked = description.flags.chunked();
         int lengthActual = chunked ? length : (int) Math.min(length, description.available());
