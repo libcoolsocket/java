@@ -353,9 +353,6 @@ public class ActiveConnection implements Closeable
      */
     public void handleByteBreak(Description description, boolean write) throws IOException
     {
-        if (!description.hasAvailable())
-            throw new DescriptionClosedException("This description is closed.", description);
-
         InfoExchange exchange = null;
         ByteBreak byteBreak;
 
@@ -417,6 +414,7 @@ public class ActiveConnection implements Closeable
      */
     public int read(Description description) throws IOException
     {
+        verifyDescription(description);
         boolean chunked = description.flags.chunked();
 
         if (description.nextAvailable <= 0) {
@@ -734,6 +732,17 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Verify that the given description is open and can read/write data.
+     *
+     * @param description That needs integrity-check.
+     */
+    public void verifyDescription(Description description) throws DescriptionClosedException
+    {
+        if (!description.hasAvailable())
+            throw new DescriptionClosedException("This description is closed.", description);
+    }
+
+    /**
      * Write to the remote.
      * <p>
      * The offset defaults to 0, and the length defaults to the length of byte array.
@@ -771,6 +780,8 @@ public class ActiveConnection implements Closeable
     public synchronized void write(Description description, byte[] bytes, int offset, int length)
             throws IOException
     {
+        verifyDescription(description);
+
         if (length < 0 || offset + length > bytes.length)
             throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
@@ -871,21 +882,21 @@ public class ActiveConnection implements Closeable
      */
     public synchronized void writeEnd(Description description) throws IOException
     {
-        if (description.flags.chunked() || description.hasAvailable()) {
-            writeState(description);
-            description.byteBuffer.clear();
-            description.byteBuffer.putLong(CoolSocket.LENGTH_UNSPECIFIED);
-            description.byteBuffer.flip();
-            getWritableByteChannel().write(description.byteBuffer);
-        }
+        if (!description.hasAvailable())
+            return;
+
+        writeState(description);
+        description.byteBuffer.clear();
+        description.byteBuffer.putLong(CoolSocket.LENGTH_UNSPECIFIED);
+        description.byteBuffer.flip();
+        getWritableByteChannel().write(description.byteBuffer);
 
         description.nextAvailable = CoolSocket.LENGTH_UNSPECIFIED;
 
         getOutputStreamPriv().flush();
 
-        if (!description.flags.chunked() && description.hasAvailable())
-            // If not chunked, then the size must be known, and if the sent size is smaller than reported, this is an
-            // error.
+        // If not chunked, then the size must be known, and if the sent size is smaller than reported, this is an error.
+        if (!description.flags.chunked())
             throw new SizeLimitFellBehindException("The write operation should not be ended. The written byte length" +
                     " is below what was reported.", description.totalLength, description.consumedLength);
     }

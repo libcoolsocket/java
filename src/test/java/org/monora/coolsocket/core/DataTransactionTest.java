@@ -448,4 +448,33 @@ public class DataTransactionTest
             coolSocket.stop();
         }
     }
+
+    @Test
+    public void fixedZeroBytesTest() throws IOException, InterruptedException
+    {
+        final CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    ActiveConnection.Description description = activeConnection.writeBegin(0, 0);
+                    activeConnection.writeEnd(description);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.readBegin();
+            while (description.hasAvailable()) {
+                activeConnection.read(description);
+            }
+        } finally {
+            coolSocket.stop();
+        }
+    }
 }
