@@ -738,6 +738,7 @@ public class ActiveConnection implements Closeable
      * Verify that the given description is open and can read/write data.
      *
      * @param description That needs integrity-check.
+     * @throws DescriptionClosedException If the given description is closed.
      */
     public void verifyDescription(Description description) throws DescriptionClosedException
     {
