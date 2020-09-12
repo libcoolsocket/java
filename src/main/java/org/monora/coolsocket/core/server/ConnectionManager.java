@@ -34,7 +34,9 @@ public interface ConnectionManager
     int CLOSING_CONTRACT_DO_NOTHING = 8;
 
     /**
-     * Force close all the active connections.
+     * Close all the client connections following the contract type that was set.
+     *
+     * @see #setClosingContract(boolean, int)
      */
     void closeAll();
 

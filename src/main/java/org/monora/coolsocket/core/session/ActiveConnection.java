@@ -399,7 +399,10 @@ public class ActiveConnection implements Closeable
                 break;
             case None:
             default:
+                return;
         }
+
+        handleByteBreak(description, write);
     }
 
     /**

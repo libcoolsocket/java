@@ -96,6 +96,7 @@ public class ClientManagementTest
     public void countClientConnectionsTest() throws IOException, InterruptedException
     {
         final String message = "Hey!";
+        final InetAddress localhost = InetAddress.getLoopbackAddress();
 
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
@@ -118,7 +119,7 @@ public class ClientManagementTest
         ActiveConnection[] connections = new ActiveConnection[5];
 
         for (int i = 0; i < connections.length; i++) {
-            ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+            ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(localhost, PORT));
             connections[i] = activeConnection;
 
             activeConnection.reply(message);
@@ -128,7 +129,7 @@ public class ClientManagementTest
                 session.getConnectionManager().getActiveConnectionList().size());
 
         Assert.assertEquals("Number of connections should be same.", connections.length,
-                session.getConnectionManager().getConnectionCountByAddress(InetAddress.getLocalHost()));
+                session.getConnectionManager().getConnectionCountByAddress(localhost));
 
         for (ActiveConnection activeConnection : connections) {
             try {
