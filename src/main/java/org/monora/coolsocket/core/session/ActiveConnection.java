@@ -454,7 +454,7 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Prepare for an operation and retrieve the information about that.
+     * Prepare for an operation and retrieve the information about it.
      *
      * @return The object representing the operation.
      * @throws IOException If an IO error occurs, {@link CancelledException} if it was requested by any parties.
@@ -811,7 +811,7 @@ public class ActiveConnection implements Closeable
 
         if (lengthActual < length)
             throw new SizeLimitExceededException("The length requested exceeds the data size reported to the remote. " +
-                    "The expected size has been written to the remote, but this is an error that should handled.",
+                    "The expected size has been written to the remote, but this is an error that should be handled.",
                     description.totalLength, description.consumedLength - lengthActual + length);
     }
 
@@ -836,7 +836,7 @@ public class ActiveConnection implements Closeable
      * <p>
      * The total length defaults to zero and the transmission type becomes chunked {@link Flags#FLAG_DATA_CHUNKED}.
      *
-     * @param flags The feature flags set for this part. It sets how the remote should handle the data it
+     * @param flags The feature flags set for this part. It sets how the remote should handle the data it will receive.
      * @return The description object for this write operation.
      * @throws IOException When socket related IO error occurs.
      * @see #writeBegin(long, long)
@@ -853,7 +853,8 @@ public class ActiveConnection implements Closeable
      * After this method call, you should invoke {@link #write(Description, byte[], int, int)} to begin writing bytes
      * or end the part with the {@link #writeEnd(Description)} method call.
      *
-     * @param flags       The feature flags set for this part. It sets how the remote should handle the data it
+     * @param flags       The feature flags set for this part. It sets how the remote should handle the data it will
+     *                    receives.
      * @param totalLength The total length of the data that will be sent. If unknown, use {@link #writeBegin(long)} for
      *                    chunked transmission type.
      * @return The description object for this write operation.
@@ -882,7 +883,9 @@ public class ActiveConnection implements Closeable
      * Finalize the write operation that was started with {@link #writeBegin(long, long)}.
      *
      * @param description The description object representing the operation.
-     * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
+     * @throws IOException                  If an IO error occurs, or {@link CancelledException} if the operation is
+     *                                      cancelled.
+     * @throws SizeLimitFellBehindException If the operation is not chunked, and there are bytes left.
      */
     public synchronized void writeEnd(Description description) throws IOException
     {
@@ -1012,7 +1015,7 @@ public class ActiveConnection implements Closeable
         }
 
         /**
-         * Return the available data.
+         * Return the available data length.
          * <p>
          * If chunked, this will return the data length available. This will usually not reflect the whole as the
          * data is available as much as it is read.
@@ -1043,11 +1046,9 @@ public class ActiveConnection implements Closeable
 
         /**
          * Check whether there is more data to come.
-         * <p>
-         * This can also referred to as the <b>~isClosed()</b>, which means when this returns false, this description
-         * will no longer valid to use for reading/writing.
          *
-         * @return True if there may be more data incoming.
+         * @return True if there may be more data to transfer, or false if the description is no longer valid to use
+         * for reading/writing.
          */
         public boolean hasAvailable()
         {

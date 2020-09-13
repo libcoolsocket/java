@@ -27,7 +27,7 @@ public class Main
             {
                 try {
                     activeConnection.reply("Hello!");
-                    System.out.println(activeConnection.receive().getAsString());
+                    System.out.println(activeConnection.receive().getAsString()); // Merhaba!
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -37,7 +37,7 @@ public class Main
         coolSocket.start();
 
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(port), 0)) {
-            System.out.println(activeConnection.receive().getAsString());
+            System.out.println(activeConnection.receive().getAsString()); // "Hello!"
             activeConnection.reply("Merhaba!");
         } finally {
             coolSocket.stop();   
