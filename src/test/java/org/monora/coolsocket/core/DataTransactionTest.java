@@ -113,7 +113,7 @@ public class DataTransactionTest
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
                     activeConnection.write(description, new byte[size]);
-                    activeConneConnections should be closed before their references are being destroyedction.writeEnd(description);
+                    activeConnection.writeEnd(description);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
