@@ -198,7 +198,7 @@ public class ActiveConnection implements Closeable
         InfoExchange infoExchange = InfoExchange.from(description.byteBuffer.getInt());
         int length = description.byteBuffer.getInt();
         if (length > infoExchange.maxLength)
-            throw new SizeLimitExceededException("The remote reported size for " + infoExchange + "is too large.",
+            throw new SizeOverflowException("The remote reported size for " + infoExchange + "is too large.",
                     infoExchange.maxLength, length);
 
         switch (infoExchange) {
@@ -431,7 +431,7 @@ public class ActiveConnection implements Closeable
 
             if (description.nextAvailable == CoolSocket.LENGTH_UNSPECIFIED) {
                 if (description.hasAvailable())
-                    throw new SizeLimitFellBehindException("Remote closed the connection before reading the data in " +
+                    throw new SizeUnderflowException("Remote closed the connection before reading the data in " +
                             "full.", description.totalLength, description.consumedLength);
                 else
                     return CoolSocket.LENGTH_UNSPECIFIED;
@@ -603,7 +603,7 @@ public class ActiveConnection implements Closeable
             len = read(description);
 
             if (maxLength > 0 && description.consumedLength > maxLength)
-                throw new SizeLimitExceededException("The length of the data exceeds the maximum length.", maxLength,
+                throw new SizeOverflowException("The length of the data exceeds the maximum length.", maxLength,
                         description.consumedLength);
 
             if (len > 0)
@@ -810,7 +810,7 @@ public class ActiveConnection implements Closeable
         getOutputStreamPriv().write(bytes, offset, lengthActual);
 
         if (lengthActual < length)
-            throw new SizeLimitExceededException("The length requested exceeds the data size reported to the remote. " +
+            throw new SizeOverflowException("The length requested exceeds the data size reported to the remote. " +
                     "The expected size has been written to the remote, but this is an error that should be handled.",
                     description.totalLength, description.consumedLength - lengthActual + length);
     }
@@ -885,7 +885,7 @@ public class ActiveConnection implements Closeable
      * @param description The description object representing the operation.
      * @throws IOException                  If an IO error occurs, or {@link CancelledException} if the operation is
      *                                      cancelled.
-     * @throws SizeLimitFellBehindException If the operation is not chunked, and there are bytes left.
+     * @throws SizeUnderflowException If the operation is not chunked, and there are bytes left.
      */
     public synchronized void writeEnd(Description description) throws IOException
     {
@@ -904,7 +904,7 @@ public class ActiveConnection implements Closeable
 
         // If not chunked, then the size must be known, and if the sent size is smaller than reported, this is an error.
         if (!description.flags.chunked())
-            throw new SizeLimitFellBehindException("The write operation should not be ended. The written byte length" +
+            throw new SizeUnderflowException("The write operation should not be ended. The written byte length" +
                     " is below what was reported.", description.totalLength, description.consumedLength);
     }
 

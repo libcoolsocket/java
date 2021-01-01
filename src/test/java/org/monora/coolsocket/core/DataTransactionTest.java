@@ -2,8 +2,8 @@ package org.monora.coolsocket.core;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.monora.coolsocket.core.response.SizeLimitExceededException;
-import org.monora.coolsocket.core.response.SizeLimitFellBehindException;
+import org.monora.coolsocket.core.response.SizeOverflowException;
+import org.monora.coolsocket.core.response.SizeUnderflowException;
 import org.monora.coolsocket.core.response.SizeMismatchException;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.DescriptionClosedException;
@@ -113,7 +113,7 @@ public class DataTransactionTest
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
                     activeConnection.write(description, new byte[size]);
-                    activeConnection.writeEnd(description);
+                    activeConneConnections should be closed before their references are being destroyedction.writeEnd(description);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -193,7 +193,7 @@ public class DataTransactionTest
         coolSocket.stop();
     }
 
-    @Test(expected = SizeLimitFellBehindException.class)
+    @Test(expected = SizeUnderflowException.class)
     public void sizeBelowDuringReadTest() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
@@ -207,7 +207,7 @@ public class DataTransactionTest
                             bytes.length + 1);
                     activeConnection.write(description, bytes);
                     activeConnection.writeEnd(description);
-                } catch (SizeLimitFellBehindException ignored) {
+                } catch (SizeUnderflowException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -223,7 +223,7 @@ public class DataTransactionTest
         }
     }
 
-    @Test(expected = SizeLimitFellBehindException.class)
+    @Test(expected = SizeUnderflowException.class)
     public void sizeBelowDuringWriteTest() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
@@ -234,7 +234,7 @@ public class DataTransactionTest
             {
                 try {
                     activeConnection.receive();
-                } catch (SizeLimitFellBehindException ignored) {
+                } catch (SizeUnderflowException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -252,7 +252,7 @@ public class DataTransactionTest
         }
     }
 
-    @Test(expected = SizeLimitExceededException.class)
+    @Test(expected = SizeOverflowException.class)
     public void sizeAboveDuringWriteTest() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
@@ -298,7 +298,7 @@ public class DataTransactionTest
                     activeConnection.write(description, base);
                     activeConnection.write(description, end);
                     activeConnection.writeEnd(description);
-                } catch (SizeLimitExceededException ignored) {
+                } catch (SizeOverflowException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
