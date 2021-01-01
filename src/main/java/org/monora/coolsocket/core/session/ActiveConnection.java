@@ -934,8 +934,7 @@ public class ActiveConnection implements Closeable
         public final Flags flags;
 
         /**
-         * The unique integer representing this description which is used verify that read and write operation
-         * is made true the same owner
+         * The unique integer that verifies that read and write operations happens within the same description.
          */
         public final int operationId;
 
