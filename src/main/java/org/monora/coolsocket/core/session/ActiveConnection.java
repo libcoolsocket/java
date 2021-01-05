@@ -161,6 +161,9 @@ public class ActiveConnection implements Closeable
 
     /**
      * Connects to a CoolSocket server.
+     * <p>
+     * This doesn't use {@link javax.net.SocketFactory} because it doesn't offer a parameter to set the timeout.
+     * If you need to use it, please use the constructor methods and pass the socket instance, instead.
      *
      * @param socketAddress The server address to connection.
      * @param readTimeout   The maximum time allowed during reading from the input channel.
@@ -170,7 +173,6 @@ public class ActiveConnection implements Closeable
     public static ActiveConnection connect(SocketAddress socketAddress, int readTimeout) throws IOException
     {
         Socket socket = new Socket();
-        socket.bind(null);
         socket.connect(socketAddress, readTimeout);
 
         return new ActiveConnection(socket, readTimeout);
@@ -733,7 +735,7 @@ public class ActiveConnection implements Closeable
      * <p>
      * This method is in place so that you can upgrade to a secure connection (usually wrapped around the same socket
      * instance).
-     *
+     * <p>
      * In any case, the remote should also be ready for the change.
      *
      * @param socket The socket instance.
