@@ -24,7 +24,7 @@ import static org.monora.coolsocket.core.config.Config.DATA_EXCHANGE_BUFFER_SIZE
  */
 public class ActiveConnection implements Closeable
 {
-    private final Socket socket;
+    private Socket socket;
 
     private OutputStream privOutputStream;
 
@@ -49,13 +49,7 @@ public class ActiveConnection implements Closeable
      */
     public ActiveConnection(Socket socket)
     {
-        if (socket == null)
-            throw new NullPointerException("Socket cannot be null.");
-
-        if (!socket.isConnected())
-            throw new IllegalStateException("Socket should have a valid connection.");
-
-        this.socket = socket;
+        setSocket(socket);
     }
 
     /**
@@ -735,6 +729,27 @@ public class ActiveConnection implements Closeable
     }
 
     /**
+     * Update the socket instance with the given socket.
+     * <p>
+     * This method is in place so that you can upgrade to a secure connection (usually wrapped around the same socket
+     * instance).
+     *
+     * In any case, the remote should also be ready for the change.
+     *
+     * @param socket The socket instance.
+     */
+    public void setSocket(Socket socket)
+    {
+        if (socket == null)
+            throw new NullPointerException("Socket cannot be null.");
+
+        if (!socket.isConnected())
+            throw new IllegalStateException("Socket should have a valid connection.");
+
+        this.socket = socket;
+    }
+
+    /**
      * Verify that the given description is open and can read/write data.
      *
      * @param description That needs integrity-check.
@@ -883,8 +898,8 @@ public class ActiveConnection implements Closeable
      * Finalize the write operation that was started with {@link #writeBegin(long, long)}.
      *
      * @param description The description object representing the operation.
-     * @throws IOException                  If an IO error occurs, or {@link CancelledException} if the operation is
-     *                                      cancelled.
+     * @throws IOException            If an IO error occurs, or {@link CancelledException} if the operation is
+     *                                cancelled.
      * @throws SizeUnderflowException If the operation is not chunked, and there are bytes left.
      */
     public synchronized void writeEnd(Description description) throws IOException

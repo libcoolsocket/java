@@ -18,5 +18,6 @@ public class ConfigTest
         coolSocket.start();
         Assert.assertNotEquals("The random port should be the assigned port when started",
                 coolSocket.getLocalPort(), 0);
+        coolSocket.stop();
     }
 }
