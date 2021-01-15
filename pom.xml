@@ -6,7 +6,7 @@
 
     <groupId>org.monora.coolsocket</groupId>
     <artifactId>core</artifactId>
-    <version>2.0-rc09</version>
+    <version>2.0-rc10</version>
     <name>CoolSocket</name>
     <description>Bidirectional TCP socket layer and server</description>
     <url>https://github.com//libcoolsocket/java</url>
@@ -47,7 +47,7 @@
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20180130</version>
+            <version>20201115</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
