@@ -880,6 +880,7 @@ public class ActiveConnection implements Closeable
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
         ByteBuffer byteBuffer = ByteBuffer.allocate(DATA_EXCHANGE_BUFFER_SIZE);
+        // TODO: 1/16/21 Why not use increments on 0 value instead of a random value?
         int operationId = (int) (Integer.MAX_VALUE * Math.random());
         Description description = new Description(flags, operationId, totalLength, byteBuffer);
         byteBuffer.putLong(flags)
