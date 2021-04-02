@@ -16,7 +16,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 
-import static org.monora.coolsocket.core.config.Config.DATA_EXCHANGE_BUFFER_SIZE;
+import static org.monora.coolsocket.core.config.Config.DEFAULT_BUFFER_SIZE;
+import static org.monora.coolsocket.core.config.Config.DEFAULT_INVERSE_EXCHANGE_POINT;
 
 /**
  * This class connects to both clients and servers. This accepts a valid socket instance, and writes to and reads from
@@ -34,7 +35,9 @@ public class ActiveConnection implements Closeable
 
     private ReadableByteChannel readableByteChannel;
 
-    private int internalCacheLimit = 256 * 1024;
+    private int internalCacheSize = DEFAULT_BUFFER_SIZE;
+
+    private int nextOperationId = 0;
 
     private int protocolVersion;
 
@@ -166,7 +169,7 @@ public class ActiveConnection implements Closeable
      * If you need to use it, please use the constructor methods and pass the socket instance, instead.
      *
      * @param socketAddress The server address to connection.
-     * @param readTimeout   The maximum time allowed during reading from the input channel.
+     * @param readTimeout   The maximum delay when reading from the input channel.
      * @return The connection object representing an active connection.
      * @throws IOException If connection fails for some reason.
      */
@@ -190,20 +193,13 @@ public class ActiveConnection implements Closeable
      */
     private InfoExchange exchangeReceive(Description description) throws IOException
     {
-        readOrFail(description.byteBuffer, Integer.BYTES * 2);
+        readOrFail(description.byteBuffer, Integer.BYTES);
         InfoExchange infoExchange = InfoExchange.from(description.byteBuffer.getInt());
-        int length = description.byteBuffer.getInt();
-        if (length > infoExchange.maxLength)
-            throw new SizeOverflowException("The remote reported size for " + infoExchange + "is too large.",
-                    infoExchange.maxLength, length);
 
         switch (infoExchange) {
             case ProtocolVersion:
-                readOrFail(description.byteBuffer, length);
+                readOrFail(description.byteBuffer, Integer.BYTES);
                 protocolVersion = description.byteBuffer.getInt();
-                break;
-            case Dummy:
-            default:
         }
 
         return infoExchange;
@@ -223,12 +219,8 @@ public class ActiveConnection implements Closeable
 
         switch (infoExchange) {
             case ProtocolVersion:
-                description.byteBuffer.putInt(Integer.BYTES);
                 description.byteBuffer.putInt(Config.PROTOCOL_VERSION);
                 break;
-            case Dummy:
-            default:
-                description.byteBuffer.putInt(0);
         }
 
         description.byteBuffer.flip();
@@ -264,9 +256,9 @@ public class ActiveConnection implements Closeable
     /**
      * @return The limit for internal caching when reading into the heap.
      */
-    public int getInternalCacheLimit()
+    public int getInternalCacheSize()
     {
-        return internalCacheLimit;
+        return internalCacheSize;
     }
 
     private InputStream getInputStreamPriv() throws IOException
@@ -340,7 +332,7 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * Do a byte break with the remote where the state of the writing side is applied and executed on both sides.
+     * Do a protocol request with the remote where the state of the writing side is applied and executed on both sides.
      *
      * @param description The description object that represents the operation.
      * @param write       True if this call is made when sending.
@@ -350,34 +342,34 @@ public class ActiveConnection implements Closeable
     public void handleByteBreak(Description description, boolean write) throws IOException
     {
         InfoExchange exchange = null;
-        ByteBreak byteBreak;
+        ProtocolRequest protocolRequest;
 
         if (write) {
             if (closeRequested())
-                byteBreak = ByteBreak.Close;
+                protocolRequest = ProtocolRequest.Close;
             else if (cancelled())
-                byteBreak = ByteBreak.Cancel;
+                protocolRequest = ProtocolRequest.Cancel;
             else if (protocolVersion == 0) {
-                byteBreak = ByteBreak.InfoExchange;
+                protocolRequest = ProtocolRequest.InfoExchange;
                 exchange = InfoExchange.ProtocolVersion;
             } else
-                byteBreak = ByteBreak.None;
+                protocolRequest = ProtocolRequest.None;
 
             description.byteBuffer.clear();
             description.byteBuffer.putInt(description.operationId)
-                    .putInt(byteBreak.ordinal())
+                    .putInt(protocolRequest.ordinal())
                     .flip();
             getWritableByteChannel().write(description.byteBuffer);
         } else {
             readOrFail(description.byteBuffer, Integer.BYTES * 2);
             int remoteOperationId = description.byteBuffer.getInt();
-            byteBreak = ByteBreak.from(description.byteBuffer.getInt());
+            protocolRequest = ProtocolRequest.from(description.byteBuffer.getInt());
             if (description.operationId != remoteOperationId)
                 throw new DescriptionMismatchException("The remote description is different than ours.", description,
                         remoteOperationId);
         }
 
-        switch (byteBreak) {
+        switch (protocolRequest) {
             case Close:
                 try {
                     close();
@@ -417,7 +409,7 @@ public class ActiveConnection implements Closeable
         boolean chunked = description.flags.chunked();
 
         if (description.nextAvailable <= 0) {
-            if (description.transactionCount++ == 2048) {
+            if (description.transactionCount++ == description.inverseExchangePoint) {
                 writeState(description);
                 description.transactionCount = 0;
             } else
@@ -435,7 +427,8 @@ public class ActiveConnection implements Closeable
         }
 
         description.byteBuffer.clear();
-        int length = (int) Math.min(description.byteBuffer.remaining(), Math.min(description.nextAvailable, description.available()));
+        int length = (int) Math.min(description.byteBuffer.remaining(),
+                Math.min(description.nextAvailable, description.available()));
         description.byteBuffer.limit(length);
         length = getReadableByteChannel().read(description.byteBuffer);
         description.byteBuffer.flip();
@@ -451,14 +444,16 @@ public class ActiveConnection implements Closeable
 
     /**
      * Prepare for an operation and retrieve the information about it.
+     * <p>
+     * Inverse exchange point defaults to {@link Config#DEFAULT_INVERSE_EXCHANGE_POINT}.
      *
      * @return The object representing the operation.
      * @throws IOException If an IO error occurs, {@link CancelledException} if it was requested by any parties.
-     * @see #readBegin(byte[])
+     * @see #readBegin(byte[], int)
      */
     public Description readBegin() throws IOException
     {
-        return readBegin(new byte[DATA_EXCHANGE_BUFFER_SIZE]);
+        return readBegin(new byte[DEFAULT_BUFFER_SIZE], DEFAULT_INVERSE_EXCHANGE_POINT);
     }
 
     /**
@@ -472,19 +467,27 @@ public class ActiveConnection implements Closeable
      * You can use one of the {@link #receive} methods to read all the bytes at once if you don't need show progress
      * information.
      *
-     * @param buffer The buffer to write into. It shouldn't be too small (e.g., 1-8 bytes). For better compatibility,
-     *               use the {@link #readBegin()} that doesn't take this as an argument.
+     * @param buffer               The buffer to write into. It shouldn't be too small (e.g., 1-8 bytes). For better
+     *                             compatibility, use the {@link #readBegin()} that doesn't take this as an argument.
+     * @param inverseExchangePoint The point when receiver will send a {@link ProtocolRequest}.
      * @return The object representing the operation.
      * @throws IOException If an IO error occurs, {@link CancelledException} if it was requested by any parties.
-     * @see #readBegin(byte[])
+     * @see #readBegin()
+     * @see Config#DEFAULT_INVERSE_EXCHANGE_POINT
      */
-    public Description readBegin(byte[] buffer) throws IOException
+    public Description readBegin(byte[] buffer, int inverseExchangePoint) throws IOException
     {
         ByteBuffer byteBuffer = ByteBuffer.wrap(buffer);
+
+        byteBuffer.putInt(inverseExchangePoint).flip();
+        getWritableByteChannel().write(byteBuffer);
+
         readOrFail(byteBuffer, Long.BYTES * 2 + Integer.BYTES);
 
         Description description = new Description(byteBuffer.getLong(), byteBuffer.getInt(), byteBuffer.getLong(),
-                byteBuffer);
+                inverseExchangePoint, byteBuffer);
+
+        nextOperationId = description.operationId;
 
         readState(description);
         writeState(description);
@@ -543,7 +546,7 @@ public class ActiveConnection implements Closeable
      */
     public Response receive() throws IOException
     {
-        return receive(new ByteArrayOutputStream(), getInternalCacheLimit());
+        return receive(new ByteArrayOutputStream(), getInternalCacheSize());
     }
 
     /**
@@ -722,12 +725,12 @@ public class ActiveConnection implements Closeable
      * <p>
      * This will not be used for custom output streams, i.e. {@link #receive(OutputStream, int)}.
      *
-     * @param internalCacheLimit The limit in bytes.
+     * @param internalCacheSize The limit in bytes.
      * @see #receive()
      */
-    public void setInternalCacheLimit(int internalCacheLimit)
+    public void setInternalCacheSize(int internalCacheSize)
     {
-        this.internalCacheLimit = internalCacheLimit;
+        this.internalCacheSize = internalCacheSize;
     }
 
     /**
@@ -806,7 +809,7 @@ public class ActiveConnection implements Closeable
         if (length < 0 || offset + length > bytes.length)
             throw new IndexOutOfBoundsException("The pointed data location is not valid.");
 
-        if (description.transactionCount++ == 2048) {
+        if (description.transactionCount++ == description.inverseExchangePoint) {
             readState(description);
             description.transactionCount = 0;
         } else
@@ -842,7 +845,7 @@ public class ActiveConnection implements Closeable
     public synchronized void write(Description description, InputStream inputStream) throws IOException
     {
         int len;
-        byte[] buffer = new byte[DATA_EXCHANGE_BUFFER_SIZE];
+        byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
         while ((len = inputStream.read(buffer)) != -1) {
             write(description, buffer, 0, len);
         }
@@ -879,10 +882,14 @@ public class ActiveConnection implements Closeable
      */
     public synchronized Description writeBegin(long flags, long totalLength) throws IOException
     {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(DATA_EXCHANGE_BUFFER_SIZE);
-        // TODO: 1/16/21 Why not use increments on 0 value instead of a random value?
-        int operationId = (int) (Integer.MAX_VALUE * Math.random());
-        Description description = new Description(flags, operationId, totalLength, byteBuffer);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
+        int operationId = ++nextOperationId;
+
+        readOrFail(byteBuffer, Integer.BYTES);
+        int inverseExchangePoint = byteBuffer.getInt();
+        byteBuffer.clear();
+
+        Description description = new Description(flags, operationId, totalLength, inverseExchangePoint, byteBuffer);
         byteBuffer.putLong(flags)
                 .putInt(operationId)
                 .putLong(totalLength)
@@ -957,6 +964,18 @@ public class ActiveConnection implements Closeable
         public final int operationId;
 
         /**
+         * The point in cycle on which the receiver will be sending the sender a {@link ProtocolRequest}.
+         * <p>
+         * This determines whether a description is going to be more communicative or more performant.
+         * <p>
+         * In other words, if the receiver sends messages more frequently to the sender, the sender will have
+         * to do blocking to receive those messages, which will impact the performance negatively.
+         * <p>
+         * For the sake of simplicity, this isn't alterable once set for a description.
+         */
+        public final int inverseExchangePoint;
+
+        /**
          * The byte buffer that manages transferring bytes.
          */
         public final ByteBuffer byteBuffer;
@@ -978,7 +997,7 @@ public class ActiveConnection implements Closeable
         /**
          * The reported size from the remote that should be read before reading another size.
          * <p>
-         * This will be used by the read operations so that we can know when the remote sends {@link ByteBreak}.
+         * This will be used by the read operations so that we can know when the remote sends {@link ProtocolRequest}.
          */
         protected long nextAvailable;
 
@@ -993,25 +1012,29 @@ public class ActiveConnection implements Closeable
          * <p>
          * The flags are encapsulated in a {@link Flags} instance.
          *
-         * @param flags       The long integer representing the flags.
-         * @param operationId The unique identifier for this operation.
-         * @param totalLength The total length of the operation.
-         * @param byteBuffer  To cache the read or written data.
+         * @param flags                The long integer representing the flags.
+         * @param operationId          The unique identifier for this operation.
+         * @param totalLength          The total length of the operation.
+         * @param inverseExchangePoint The point when receiver will send a {@link ProtocolRequest}.
+         * @param byteBuffer           To cache the read or written data.
          */
-        public Description(long flags, int operationId, long totalLength, ByteBuffer byteBuffer)
+        public Description(long flags, int operationId, long totalLength, int inverseExchangePoint,
+                           ByteBuffer byteBuffer)
         {
-            this(new Flags(flags), operationId, totalLength, byteBuffer);
+            this(new Flags(flags), operationId, totalLength, inverseExchangePoint, byteBuffer);
         }
 
         /**
          * Create a new instance.
          *
-         * @param flags       The flags for this operation.
-         * @param operationId The unique identifier for this operation.
-         * @param totalLength The total length of the operation.
-         * @param byteBuffer  To cache the read or written data.
+         * @param flags                The flags for this operation.
+         * @param operationId          The unique identifier for this operation.
+         * @param totalLength          The total length of the operation.
+         * @param inverseExchangePoint The point when receiver will send a {@link ProtocolRequest}.
+         * @param byteBuffer           To cache the read or written data.
          */
-        public Description(Flags flags, int operationId, long totalLength, ByteBuffer byteBuffer)
+        public Description(Flags flags, int operationId, long totalLength, int inverseExchangePoint,
+                           ByteBuffer byteBuffer)
         {
             if (flags == null)
                 throw new NullPointerException("Flags cannot be null.");
@@ -1019,15 +1042,19 @@ public class ActiveConnection implements Closeable
             if (byteBuffer == null)
                 throw new NullPointerException("Buffer cannot be null.");
 
-            if (byteBuffer.capacity() < DATA_EXCHANGE_BUFFER_SIZE)
+            if (byteBuffer.capacity() < DEFAULT_BUFFER_SIZE)
                 throw new BufferUnderflowException();
 
             if (totalLength < 0)
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Total length cannot be negative number.");
+
+            if (inverseExchangePoint < 1)
+                throw new IllegalArgumentException("Inverse exchange point cannot be 0 or a negative number.");
 
             this.flags = flags;
             this.operationId = operationId;
             this.totalLength = totalLength;
+            this.inverseExchangePoint = inverseExchangePoint;
             this.byteBuffer = byteBuffer;
         }
 

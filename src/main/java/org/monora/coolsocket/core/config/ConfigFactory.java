@@ -41,7 +41,8 @@ public interface ConfigFactory
     ActiveConnection configureClient(Socket client) throws SocketException;
 
     /**
-     * The address that the upcoming products will be assigned to. This does not necessarily reflect the
+     * The address that the upcoming products will be assigned to. This does not necessarily reflect the address
+     * the server is serving on.
      *
      * @return The address that the server will be bound to.
      */

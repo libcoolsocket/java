@@ -1,9 +1,9 @@
 package org.monora.coolsocket.core.variant;
 
-import org.monora.coolsocket.core.session.ActiveConnection;
-import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.CoolSocket;
+import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.response.Response;
+import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
 import java.net.SocketAddress;

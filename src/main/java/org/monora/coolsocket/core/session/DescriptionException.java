@@ -1,11 +1,9 @@
 package org.monora.coolsocket.core.session;
 
-import java.io.IOException;
-
 /**
  * Thrown when a {@link ActiveConnection.Description} causes an error, or is used in wrong context.
  */
-public class DescriptionException extends IOException
+public class DescriptionException extends SessionException
 {
     public final ActiveConnection.Description description;
 

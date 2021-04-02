@@ -2,9 +2,10 @@ package org.monora.coolsocket.core;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.monora.coolsocket.core.config.Config;
+import org.monora.coolsocket.core.response.SizeMismatchException;
 import org.monora.coolsocket.core.response.SizeOverflowException;
 import org.monora.coolsocket.core.response.SizeUnderflowException;
-import org.monora.coolsocket.core.response.SizeMismatchException;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.DescriptionClosedException;
 
@@ -90,7 +91,7 @@ public class DataTransactionTest
         coolSocket.start();
 
         ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
-        activeConnection.setInternalCacheLimit(100);
+        activeConnection.setInternalCacheSize(100);
 
         try {
             activeConnection.receive();
@@ -123,7 +124,7 @@ public class DataTransactionTest
         coolSocket.start();
 
         ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
-        activeConnection.setInternalCacheLimit(size);
+        activeConnection.setInternalCacheSize(size);
         activeConnection.receive();
         activeConnection.close();
         coolSocket.stop();
@@ -473,6 +474,41 @@ public class DataTransactionTest
             while (description.hasAvailable()) {
                 activeConnection.read(description);
             }
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void customInverseExchangePointTest() throws IOException, InterruptedException
+    {
+        final int customPoint = 28;
+
+        final CoolSocket coolSocket = new CoolSocket(PORT)
+        {
+            @Override
+            public void onConnected(ActiveConnection activeConnection)
+            {
+                try {
+                    ActiveConnection.Description description = activeConnection.readBegin(
+                            new byte[Config.DEFAULT_BUFFER_SIZE], customPoint);
+                    while (description.hasAvailable()) {
+                        activeConnection.read(description);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+            ActiveConnection.Description description = activeConnection.writeBegin(0, 0);
+            activeConnection.writeEnd(description);
+
+            Assert.assertEquals("The custom cycle points should match", customPoint,
+                    description.inverseExchangePoint);
         } finally {
             coolSocket.stop();
         }

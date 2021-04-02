@@ -1,37 +1,31 @@
 package org.monora.coolsocket.core.response;
 
 /**
- * This enum encapsulates the type of info that can be exchanged. This is used when the byte break
- * {@link ByteBreak#InfoExchange} is requested by any side of the communication.
+ * This enum encapsulates the type of info that can be exchanged. This is used when the protocol request
+ * {@link ProtocolRequest#InfoExchange} is requested by any side of the communication.
  */
 public enum InfoExchange
 {
     /**
-     * This is not meant for real world usage. Even if you use this, the results may be incomplete due to it being a
-     * placeholder.
+     * The protocol version that this implementation supports.
+     * <p>
+     * Because they are expected to be supported, there isn't a separate field for minimum supported versions.
+     * todo: Is this a good idea to not add minimum protocol version?
      */
-    Dummy(Integer.MAX_VALUE),
+    ProtocolVersion;
 
     /**
-     * The protocol version is used to identify the client features and act in an appropriate manner so that the
-     * communication can be established even when one of the clients is old.
+     * Finds the suitable instance for the given ordinal.
+     *
+     * @param ordinal The bit order of the info exchange
+     * @return The matching enum.
+     * @throws UnsupportedFeatureException If the request cannot be satisfied.
      */
-    ProtocolVersion(Short.MAX_VALUE);
-
-    /**
-     * The max length for this type of information exchange.
-     */
-    public final int maxLength;
-
-    InfoExchange(int maxLength)
+    public static InfoExchange from(int ordinal) throws UnsupportedFeatureException
     {
-        this.maxLength = maxLength;
-    }
-
-    public static InfoExchange from(int ordinal) {
         InfoExchange[] values = values();
         if (ordinal < 0 || ordinal >= values.length)
-            return InfoExchange.Dummy;
+            throw new UnsupportedFeatureException("Requested an unsupported exchange: " + ordinal);
 
         return values[ordinal];
     }

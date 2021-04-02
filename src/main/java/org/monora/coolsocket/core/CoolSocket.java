@@ -174,7 +174,7 @@ public class CoolSocket implements ClientHandler
     }
 
     /**
-     * Restart the server without changing anything
+     * Restart the server without changing anything.
      *
      * @param timeout Time to wait before giving up.
      * @throws IOException          When something related socket set up goes wrong (e.g., a bind exception).

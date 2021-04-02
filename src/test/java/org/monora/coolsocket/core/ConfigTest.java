@@ -1,8 +1,8 @@
 package org.monora.coolsocket.core;
 
-import org.monora.coolsocket.core.variant.DummyCoolSocket;
 import org.junit.Assert;
 import org.junit.Test;
+import org.monora.coolsocket.core.variant.DummyCoolSocket;
 
 import java.io.IOException;
 

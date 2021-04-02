@@ -1,7 +1,7 @@
 package org.monora.coolsocket.core.session;
 
 /**
- * This error is thrown when the remote or us want to close the connection. Once thrown, the next read/write operation
+ * This error is thrown when the remote or we want to close the connection. Once thrown, the next read/write operation
  * will be invalid and won't work. Immediate closure of the connection and the session is needed.
  * <p>
  * The difference between this and closing the connection abruptly is the latter doesn't inform the other side that
