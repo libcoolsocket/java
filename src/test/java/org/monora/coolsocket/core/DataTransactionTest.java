@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.SocketException;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
@@ -264,6 +265,7 @@ public class DataTransactionTest
             {
                 try {
                     activeConnection.receive();
+                } catch (SocketException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

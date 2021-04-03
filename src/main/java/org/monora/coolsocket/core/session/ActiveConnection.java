@@ -68,6 +68,13 @@ public class ActiveConnection implements Closeable
         socket.setSoTimeout(timeout);
     }
 
+    private static void checkBounds(int totalLength, int offset, int length) throws IndexOutOfBoundsException
+    {
+        if (length < 0 || offset < 0 || offset + length > totalLength) {
+            throw new IndexOutOfBoundsException("The data point is not valid.");
+        }
+    }
+
     /**
      * Close the socket, and thus this connection instance.
      * <p>
@@ -669,7 +676,9 @@ public class ActiveConnection implements Closeable
      */
     public void reply(long flags, byte[] bytes, int offset, int length) throws IOException
     {
-        Description description = writeBegin(flags, bytes.length);
+        checkBounds(bytes.length, offset, length);
+
+        Description description = writeBegin(flags, length - offset);
         write(description, bytes, offset, length);
         writeEnd(description);
     }
@@ -807,8 +816,15 @@ public class ActiveConnection implements Closeable
     {
         verifyDescription(description);
 
-        if (length < 0 || offset + length > bytes.length)
-            throw new IndexOutOfBoundsException("The pointed data location is not valid.");
+        checkBounds(bytes.length, offset, length);
+
+        boolean chunked = description.flags.chunked();
+        int consume = length - offset;
+
+        if (!chunked && consume > description.available()) {
+            throw new SizeOverflowException("Trying write more than the value reported to the remote.",
+                    description.available(), consume);
+        }
 
         if (description.transactionCount++ == description.inverseExchangePoint) {
             readState(description);
@@ -816,24 +832,16 @@ public class ActiveConnection implements Closeable
         } else
             writeState(description);
 
-        boolean chunked = description.flags.chunked();
-        int lengthActual = chunked ? length : (int) Math.min(length, description.available());
-
         if (chunked)
-            description.totalLength += lengthActual;
+            description.totalLength += consume;
 
-        description.consumedLength += lengthActual;
+        description.consumedLength += consume;
 
         description.byteBuffer.clear();
-        description.byteBuffer.putLong(lengthActual);
+        description.byteBuffer.putLong(consume);
         description.byteBuffer.flip();
         getWritableByteChannel().write(description.byteBuffer);
-        getOutputStreamPriv().write(bytes, offset, lengthActual);
-
-        if (lengthActual < length)
-            throw new SizeOverflowException("The length requested exceeds the data size reported to the remote. " +
-                    "The expected size has been written to the remote, but this is an error that should be handled.",
-                    description.totalLength, description.consumedLength - lengthActual + length);
+        getOutputStreamPriv().write(bytes, offset, length);
     }
 
     /**
