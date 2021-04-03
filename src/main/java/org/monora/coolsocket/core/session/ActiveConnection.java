@@ -16,8 +16,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 
-import static org.monora.coolsocket.core.config.Config.DEFAULT_BUFFER_SIZE;
-import static org.monora.coolsocket.core.config.Config.DEFAULT_INVERSE_EXCHANGE_POINT;
+import static org.monora.coolsocket.core.config.Config.*;
 
 /**
  * This class connects to both clients and servers. This accepts a valid socket instance, and writes to and reads from
@@ -35,7 +34,7 @@ public class ActiveConnection implements Closeable
 
     private ReadableByteChannel readableByteChannel;
 
-    private int internalCacheSize = DEFAULT_BUFFER_SIZE;
+    private int internalCacheSize = DEFAULT_INTERNAL_CACHE_SIZE;
 
     private int nextOperationId = 0;
 
