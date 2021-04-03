@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.monora.coolsocket.core.config.Config;
@@ -35,7 +36,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
@@ -77,7 +78,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
@@ -110,7 +111,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0);
@@ -144,7 +145,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.reply(0, inputStream, messageBytes.length);
@@ -174,7 +175,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     if (inputStream.skip(messageBytes.length) != messageBytes.length)
@@ -202,7 +203,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0,
@@ -232,7 +233,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.receive();
@@ -261,7 +262,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.receive();
@@ -291,7 +292,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     byte[] base = message.substring(0, message.length() - 1).getBytes();
@@ -325,7 +326,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.receive();
@@ -355,7 +356,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.receive();
@@ -385,7 +386,7 @@ public class DataTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.reply(0, bytes);
@@ -423,7 +424,7 @@ public class DataTransactionTest
         final CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0,
@@ -458,7 +459,7 @@ public class DataTransactionTest
         final CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.writeBegin(0, 0);
@@ -489,7 +490,7 @@ public class DataTransactionTest
         final CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.readBegin(

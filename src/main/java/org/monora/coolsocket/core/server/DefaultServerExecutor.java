@@ -1,10 +1,10 @@
 package org.monora.coolsocket.core.server;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
-import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -14,8 +14,8 @@ import java.util.logging.Level;
 public class DefaultServerExecutor implements ServerExecutor
 {
     @Override
-    public void onSession(CoolSocket coolSocket, ConfigFactory configFactory, ConnectionManager connectionManager,
-                          ServerSocket serverSocket) throws IOException
+    public void onSession(@NotNull CoolSocket coolSocket, @NotNull ConfigFactory configFactory,
+                          @NotNull ConnectionManager connectionManager, @NotNull ServerSocket serverSocket)
     {
         do {
             try {

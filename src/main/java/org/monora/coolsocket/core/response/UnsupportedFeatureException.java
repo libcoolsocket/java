@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.response;
 
+import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.protocol.ProtocolException;
 
 /**
@@ -13,7 +14,7 @@ public class UnsupportedFeatureException extends ProtocolException
      *
      * @param message To describe the issue.
      */
-    public UnsupportedFeatureException(String message)
+    public UnsupportedFeatureException(@Nullable String message)
     {
         super(message);
     }

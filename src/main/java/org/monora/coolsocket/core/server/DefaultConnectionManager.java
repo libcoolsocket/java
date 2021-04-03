@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.server;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
@@ -13,9 +14,9 @@ import java.util.logging.Level;
 
 public class DefaultConnectionManager implements ConnectionManager
 {
-    private final List<ActiveConnection> connectionList = new ArrayList<>();
+    private final @NotNull List<@NotNull ActiveConnection> connectionList = new ArrayList<>();
 
-    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
+    private final @NotNull ExecutorService executorService = Executors.newFixedThreadPool(10);
 
     private boolean waitForExit = true;
 
@@ -63,7 +64,7 @@ public class DefaultConnectionManager implements ConnectionManager
     }
 
     @Override
-    public void handleClient(CoolSocket coolSocket, final ActiveConnection activeConnection)
+    public void handleClient(@NotNull CoolSocket coolSocket, final @NotNull ActiveConnection activeConnection)
     {
         synchronized (connectionList) {
             connectionList.add(activeConnection);
@@ -88,7 +89,7 @@ public class DefaultConnectionManager implements ConnectionManager
     }
 
     @Override
-    public List<ActiveConnection> getActiveConnectionList()
+    public @NotNull List<@NotNull ActiveConnection> getActiveConnectionList()
     {
         return new ArrayList<>(connectionList);
     }

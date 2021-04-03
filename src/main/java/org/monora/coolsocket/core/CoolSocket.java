@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.client.ClientHandler;
 import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.config.DefaultConfigFactory;
@@ -32,17 +34,17 @@ public class CoolSocket implements ClientHandler
      */
     public static final int LENGTH_UNSPECIFIED = -1;
 
-    private final Logger logger = Logger.getLogger(toString());
+    private final @NotNull Logger logger = Logger.getLogger(toString());
 
-    private final ConfigFactory configFactory;
+    private final @NotNull ConfigFactory configFactory;
 
-    private ServerExecutorFactory serverExecutorFactory;
+    private @Nullable ServerExecutorFactory serverExecutorFactory;
 
-    private ConnectionManagerFactory connectionManagerFactory;
+    private @Nullable ConnectionManagerFactory connectionManagerFactory;
 
-    private Session serverSession;
+    private @Nullable Session serverSession;
 
-    private ClientHandler clientHandler;
+    private @Nullable ClientHandler clientHandler;
 
     /**
      * Create an instance that will use the default config factory.
@@ -59,7 +61,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param address That the server will be assigned to.
      */
-    public CoolSocket(SocketAddress address)
+    public CoolSocket(@NotNull SocketAddress address)
     {
         this(new DefaultConfigFactory(address, NO_TIMEOUT, NO_TIMEOUT));
     }
@@ -69,7 +71,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param configFactory That will produce ServerSocket, and configure sockets.
      */
-    public CoolSocket(ConfigFactory configFactory)
+    public CoolSocket(@NotNull ConfigFactory configFactory)
     {
         this.configFactory = configFactory;
     }
@@ -80,9 +82,10 @@ public class CoolSocket implements ClientHandler
      * @return The client handler instance which defaults to this CoolSocket instance if empty.
      * @see #setClientHandler(ClientHandler)
      */
-    public ClientHandler getClientHandler()
+    public @NotNull ClientHandler getClientHandler()
     {
-        return clientHandler == null ? this : clientHandler;
+        ClientHandler handler = clientHandler;
+        return handler == null ? this : handler;
     }
 
     /**
@@ -90,7 +93,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The config factory instance.
      */
-    protected ConfigFactory getConfigFactory()
+    protected @NotNull ConfigFactory getConfigFactory()
     {
         return configFactory;
     }
@@ -100,11 +103,16 @@ public class CoolSocket implements ClientHandler
      *
      * @return The connection manager factory instance which defaults when empty.
      */
-    public ConnectionManagerFactory getConnectionManagerFactory()
+    public @NotNull ConnectionManagerFactory getConnectionManagerFactory()
     {
-        if (connectionManagerFactory == null)
-            connectionManagerFactory = new DefaultConnectionManagerFactory();
-        return connectionManagerFactory;
+        ConnectionManagerFactory factory = connectionManagerFactory;
+
+        if (factory == null) {
+            factory = new DefaultConnectionManagerFactory();
+            connectionManagerFactory = factory;
+        }
+
+        return factory;
     }
 
     /**
@@ -126,7 +134,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The session that runs the server process.
      */
-    public Session getSession()
+    public @Nullable Session getSession()
     {
         return serverSession;
     }
@@ -134,12 +142,15 @@ public class CoolSocket implements ClientHandler
     /**
      * @return The server executor factory instance which defaults when there is none.
      */
-    public ServerExecutorFactory getServerExecutorFactory()
+    public @NotNull ServerExecutorFactory getServerExecutorFactory()
     {
-        if (serverExecutorFactory == null)
-            serverExecutorFactory = new DefaultServerExecutorFactory();
+        ServerExecutorFactory factory = serverExecutorFactory;
+        if (factory == null) {
+            factory = new DefaultServerExecutorFactory();
+            serverExecutorFactory = factory;
+        }
 
-        return serverExecutorFactory;
+        return factory;
     }
 
     /**
@@ -168,7 +179,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The logger instance.
      */
-    public Logger getLogger()
+    public @NotNull Logger getLogger()
     {
         return logger;
     }
@@ -201,7 +212,7 @@ public class CoolSocket implements ClientHandler
      * @see #start()
      * @see #start(long)
      */
-    public Session startAsynchronously() throws IOException
+    public @NotNull Session startAsynchronously() throws IOException
     {
         if (isListening())
             throw new IllegalStateException("The server is already running.");
@@ -224,7 +235,7 @@ public class CoolSocket implements ClientHandler
      * @param clientHandler The client handler to set.
      * @see #getClientHandler()
      */
-    public void setClientHandler(ClientHandler clientHandler)
+    public void setClientHandler(@Nullable ClientHandler clientHandler)
     {
         this.clientHandler = clientHandler;
     }
@@ -235,7 +246,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param connectionManagerFactory The connection manager factory, or null to set to default.
      */
-    public void setConnectionManagerFactory(ConnectionManagerFactory connectionManagerFactory)
+    public void setConnectionManagerFactory(@Nullable ConnectionManagerFactory connectionManagerFactory)
     {
         this.connectionManagerFactory = connectionManagerFactory;
     }
@@ -246,7 +257,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param serverExecutorFactory The factory class, or null to set to default.
      */
-    public void setServerExecutorFactory(ServerExecutorFactory serverExecutorFactory)
+    public void setServerExecutorFactory(@Nullable ServerExecutorFactory serverExecutorFactory)
     {
         this.serverExecutorFactory = serverExecutorFactory;
     }
@@ -299,12 +310,15 @@ public class CoolSocket implements ClientHandler
      * @see #stop()
      * @see #stop(long)
      */
-    public Session stopAsynchronously()
+    public @Nullable Session stopAsynchronously()
     {
-        if (!isListening())
+        Session session = getSession();
+
+        if (session == null || !session.isListening()) {
             throw new IllegalStateException("The server is not running or hasn't started yet. Make sure this call" +
                     " happens during a valid session's lifecycle.");
-        Session session = getSession();
+        }
+
         session.interrupt();
         return session;
     }
@@ -351,11 +365,13 @@ public class CoolSocket implements ClientHandler
     {
         Session session = stopAsynchronously();
 
-        if (session.isListening())
+        if (session != null && session.isListening()) {
             session.waitUntilStateChange(timeout);
 
-        if (session.isListening())
-            throw new IOException("The server could not stop listening.");
+            if (session.isListening()) {
+                throw new IOException("The server could not stop listening.");
+            }
+        }
     }
 
     /**
@@ -363,13 +379,13 @@ public class CoolSocket implements ClientHandler
      */
     public class Session extends Thread
     {
-        private final ConnectionManager connectionManager;
+        private final @NotNull ConnectionManager connectionManager;
 
-        private final ServerSocket serverSocket;
+        private final @NotNull ServerSocket serverSocket;
 
-        private final ServerExecutor serverExecutor;
+        private final @NotNull ServerExecutor serverExecutor;
 
-        private final Object stateLock = new Object();
+        private final @NotNull Object stateLock = new Object();
 
         private boolean listening;
 
@@ -382,7 +398,8 @@ public class CoolSocket implements ClientHandler
          * @param serverSocket      Accepting the connections for this server session.
          * @param serverExecutor    Runs the server with the given data objects in this instance of session.
          */
-        public Session(ConnectionManager connectionManager, ServerSocket serverSocket, ServerExecutor serverExecutor)
+        public Session(@NotNull ConnectionManager connectionManager, @NotNull ServerSocket serverSocket,
+                       @NotNull ServerExecutor serverExecutor)
         {
             super("CoolSocket Server Session");
 
@@ -409,7 +426,7 @@ public class CoolSocket implements ClientHandler
          *
          * @return The connection manager instance.
          */
-        protected ConnectionManager getConnectionManager()
+        protected @NotNull ConnectionManager getConnectionManager()
         {
             return connectionManager;
         }
@@ -417,7 +434,7 @@ public class CoolSocket implements ClientHandler
         /**
          * @return The server executor for this session.
          */
-        public ServerExecutor getServerExecutor()
+        public @NotNull ServerExecutor getServerExecutor()
         {
             return serverExecutor;
         }
@@ -425,7 +442,7 @@ public class CoolSocket implements ClientHandler
         /**
          * @return The server socket that accepts the connections.
          */
-        public ServerSocket getServerSocket()
+        public @NotNull ServerSocket getServerSocket()
         {
             return serverSocket;
         }

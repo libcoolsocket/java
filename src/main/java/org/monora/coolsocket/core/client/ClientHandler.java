@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.client;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
 /**
@@ -14,7 +15,7 @@ public interface ClientHandler
      *
      * @param activeConnection The connection object that represents the client.
      */
-    default void onConnected(ActiveConnection activeConnection)
+    default void onConnected(@NotNull ActiveConnection activeConnection)
     {
 
     }

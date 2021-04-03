@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.session;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * This error is thrown when the remote or we want to close the connection. Once thrown, the next read/write operation
  * will be invalid and won't work. Immediate closure of the connection and the session is needed.
@@ -15,7 +17,7 @@ public class ClosedException extends CancelledException
      * @param message         The explanation for this error.
      * @param remoteCancelled True if this were requested by the remote, or false if it were requested by you.
      */
-    public ClosedException(String message, boolean remoteCancelled)
+    public ClosedException(@Nullable String message, boolean remoteCancelled)
     {
         super(message, remoteCancelled);
     }

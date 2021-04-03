@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.config;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ public interface ConfigFactory
      * @param serverSocket To be configured.
      * @throws IOException When an unrecoverable error occurs due to misconfiguration.
      */
-    void configureServer(ServerSocket serverSocket) throws IOException;
+    void configureServer(@NotNull ServerSocket serverSocket) throws IOException;
 
     /**
      * Produce a {@link ServerSocket} instance preconfigured with {@link #configureServer(ServerSocket)}. It is up to
@@ -38,7 +39,7 @@ public interface ConfigFactory
      * @return The configured socket encapsulated in a {@link ActiveConnection}.
      * @throws SocketException When an unrecoverable error occurs due to misconfiguration.
      */
-    ActiveConnection configureClient(Socket client) throws SocketException;
+    ActiveConnection configureClient(@NotNull Socket client) throws SocketException;
 
     /**
      * The address that the upcoming products will be assigned to. This does not necessarily reflect the address
@@ -63,26 +64,26 @@ public interface ConfigFactory
      * Time to wait for each client before throwing an error, {@link java.util.concurrent.TimeoutException} in the case
      * case {@link ServerSocket#accept()}.
      *
-     * @param timemillis The max time to wait in milliseconds.
+     * @param milliSeconds The max time to wait in milliseconds.
      * @see ServerSocket#setSoTimeout(int)
      * @see ServerSocket#accept()
      */
-    void setAcceptTimeout(int timemillis);
+    void setAcceptTimeout(int milliSeconds);
 
     /**
      * Read timeout in any scenario. This doesn't affect existing instances. A "0" (zero) value will mean to wait
      * indefinitely.
      *
-     * @param timemillis The max time to wait in milliseconds.
+     * @param milliSeconds The max time to wait in milliseconds.
      * @see Socket#setSoTimeout(int)
      * @see InputStream#read()
      */
-    void setReadTimeout(int timemillis);
+    void setReadTimeout(int milliSeconds);
 
     /**
      * Set socket address for the server.
      *
      * @param socketAddress To be used with server socket.
      */
-    void setSocketAddress(SocketAddress socketAddress);
+    void setSocketAddress(@NotNull SocketAddress socketAddress);
 }

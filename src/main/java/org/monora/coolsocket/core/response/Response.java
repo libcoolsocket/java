@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.response;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
@@ -18,12 +20,12 @@ public class Response
     /**
      * The remote that sent the response.
      */
-    public final SocketAddress remote;
+    public final @NotNull SocketAddress remote;
 
     /**
      * The feature flags set for this part.
      */
-    public final Flags flags;
+    public final @NotNull Flags flags;
 
     /**
      * The length of the data received for this part. This will also be the total length of a chunked data.
@@ -34,7 +36,7 @@ public class Response
      * If the received data is small in size, and is written to a byte buffer (e.g., {@link ByteArrayOutputStream}),
      * it will be included in this field.
      */
-    public final ByteArrayOutputStream data;
+    public final @Nullable ByteArrayOutputStream data;
 
     /**
      * Creates a new Response instance.
@@ -44,10 +46,11 @@ public class Response
      * @param length The total length of the data.
      * @param data   The byte data stored in the heap.
      */
-    public Response(SocketAddress remote, long flags, long length, ByteArrayOutputStream data)
+    public Response(@NotNull SocketAddress remote, @NotNull Flags flags, long length,
+                    @Nullable ByteArrayOutputStream data)
     {
         this.remote = remote;
-        this.flags = new Flags(flags);
+        this.flags = flags;
         this.length = length;
         this.data = data;
     }
@@ -62,7 +65,7 @@ public class Response
         return data != null;
     }
 
-    public JSONObject getAsJson()
+    public @NotNull JSONObject getAsJson()
     {
         return new JSONObject(getAsString());
     }
@@ -74,7 +77,7 @@ public class Response
      * @return The encapsulated JSON data.
      * @throws UnsupportedEncodingException If the supplied charset name is not available.
      */
-    public JSONObject getAsJson(String charsetName) throws UnsupportedEncodingException
+    public @NotNull JSONObject getAsJson(@NotNull String charsetName) throws UnsupportedEncodingException
     {
         return new JSONObject(getAsString(charsetName));
     }
@@ -87,9 +90,12 @@ public class Response
      * @throws UnsupportedEncodingException If the supplied charset name is not available.
      * @see #getAsString()
      */
-    public String getAsString(String charsetName) throws UnsupportedEncodingException
+    public @NotNull String getAsString(@NotNull String charsetName) throws UnsupportedEncodingException
     {
-        return data == null ? null : data.toString(charsetName);
+        if (data == null) {
+            throw new IllegalStateException("Trying to read data from a response whose data point is separate.");
+        }
+        return data.toString(charsetName);
     }
 
     /**
@@ -98,8 +104,11 @@ public class Response
      * @return The string representation of the {@link #data}.
      * @see #getAsString(String)
      */
-    public String getAsString()
+    public @NotNull String getAsString()
     {
-        return data == null ? null : data.toString();
+        if (data == null) {
+            throw new IllegalStateException("Trying to read data from a response whose data point is separate.");
+        }
+        return data.toString();
     }
 }

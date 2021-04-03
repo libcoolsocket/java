@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.Test;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.DescriptionMismatchException;
@@ -19,11 +20,11 @@ public class SafetyTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description1 = activeConnection.writeBegin(0);
-                    ActiveConnection.Description description2 = activeConnection.writeBegin(0);
+                    activeConnection.writeBegin(0);
 
                     // writes to 1st
                     activeConnection.write(description1, bytes);
@@ -35,7 +36,7 @@ public class SafetyTest
         coolSocket.start();
 
         try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
-            ActiveConnection.Description description1 = activeConnection.readBegin();
+            activeConnection.readBegin();
             ActiveConnection.Description description2 = activeConnection.readBegin();
 
             // reads the 2nd

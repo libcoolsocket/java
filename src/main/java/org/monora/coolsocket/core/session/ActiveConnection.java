@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.session;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.config.Config;
@@ -24,15 +26,11 @@ import static org.monora.coolsocket.core.config.Config.*;
  */
 public class ActiveConnection implements Closeable
 {
-    private Socket socket;
+    private @NotNull Socket socket;
 
-    private OutputStream privOutputStream;
+    private @Nullable WritableByteChannel writableByteChannel;
 
-    private InputStream privInputStream;
-
-    private WritableByteChannel writableByteChannel;
-
-    private ReadableByteChannel readableByteChannel;
+    private @Nullable ReadableByteChannel readableByteChannel;
 
     private int internalCacheSize = DEFAULT_INTERNAL_CACHE_SIZE;
 
@@ -49,9 +47,10 @@ public class ActiveConnection implements Closeable
      *
      * @param socket The connection to CoolSocket server or client.
      */
-    public ActiveConnection(Socket socket)
+    public ActiveConnection(@NotNull Socket socket)
     {
-        setSocket(socket);
+        checkSocket(socket);
+        this.socket = socket;
     }
 
     /**
@@ -62,7 +61,7 @@ public class ActiveConnection implements Closeable
      *                another packet to arrive or go.
      * @throws SocketException If setting the socket timeout fails.
      */
-    public ActiveConnection(Socket socket, int timeout) throws SocketException
+    public ActiveConnection(@NotNull Socket socket, int timeout) throws SocketException
     {
         this(socket);
         socket.setSoTimeout(timeout);
@@ -72,6 +71,13 @@ public class ActiveConnection implements Closeable
     {
         if (length < 0 || offset < 0 || offset + length > totalLength) {
             throw new IndexOutOfBoundsException("The data point is not valid.");
+        }
+    }
+
+    private static void checkSocket(@NotNull Socket socket)
+    {
+        if (!socket.isConnected()) {
+            throw new IllegalStateException("Socket should have a valid connection.");
         }
     }
 
@@ -163,7 +169,7 @@ public class ActiveConnection implements Closeable
      * @return The connection object representing an active connection.
      * @throws IOException If connection fails for some reason.
      */
-    public static ActiveConnection connect(SocketAddress socketAddress) throws IOException
+    public static @NotNull ActiveConnection connect(SocketAddress socketAddress) throws IOException
     {
         return connect(socketAddress, 0);
     }
@@ -179,7 +185,8 @@ public class ActiveConnection implements Closeable
      * @return The connection object representing an active connection.
      * @throws IOException If connection fails for some reason.
      */
-    public static ActiveConnection connect(SocketAddress socketAddress, int readTimeout) throws IOException
+    public static @NotNull ActiveConnection connect(@NotNull SocketAddress socketAddress, int readTimeout)
+            throws IOException
     {
         Socket socket = new Socket();
         socket.connect(socketAddress, readTimeout);
@@ -197,7 +204,7 @@ public class ActiveConnection implements Closeable
      * @return The value that was executed.
      * @throws IOException If an IO error occurs.
      */
-    private InfoExchange exchangeReceive(Description description) throws IOException
+    private InfoExchange exchangeReceive(@NotNull Description description) throws IOException
     {
         readOrFail(description.byteBuffer, Integer.BYTES);
         InfoExchange infoExchange = InfoExchange.from(description.byteBuffer.getInt());
@@ -218,7 +225,7 @@ public class ActiveConnection implements Closeable
      * @param infoExchange The type info that is being exchanged.
      * @throws IOException If an IO error occurs.
      */
-    private void exchangeSend(Description description, InfoExchange infoExchange) throws IOException
+    private void exchangeSend(@NotNull Description description, @NotNull InfoExchange infoExchange) throws IOException
     {
         description.byteBuffer.clear();
         description.byteBuffer.putInt(infoExchange.ordinal());
@@ -256,7 +263,7 @@ public class ActiveConnection implements Closeable
     /**
      * @return The address that the socket is bound to.
      */
-    public InetAddress getAddress()
+    public @NotNull InetAddress getAddress()
     {
         return getSocket().getInetAddress();
     }
@@ -271,16 +278,12 @@ public class ActiveConnection implements Closeable
 
     private InputStream getInputStreamPriv() throws IOException
     {
-        if (privInputStream == null)
-            privInputStream = getSocket().getInputStream();
-        return privInputStream;
+        return getSocket().getInputStream();
     }
 
     private OutputStream getOutputStreamPriv() throws IOException
     {
-        if (privOutputStream == null)
-            privOutputStream = getSocket().getOutputStream();
-        return privOutputStream;
+        return getSocket().getOutputStream();
     }
 
     /**
@@ -311,8 +314,12 @@ public class ActiveConnection implements Closeable
      */
     protected ReadableByteChannel getReadableByteChannel() throws IOException
     {
-        if (readableByteChannel == null)
-            readableByteChannel = Channels.newChannel(getInputStreamPriv());
+        ReadableByteChannel channel = readableByteChannel;
+
+        if (channel == null) {
+            channel = Channels.newChannel(getInputStreamPriv());
+            readableByteChannel = channel;
+        }
         return readableByteChannel;
     }
 
@@ -321,7 +328,7 @@ public class ActiveConnection implements Closeable
      *
      * @return The socket instance.
      */
-    public Socket getSocket()
+    public @NotNull Socket getSocket()
     {
         return socket;
     }
@@ -334,9 +341,13 @@ public class ActiveConnection implements Closeable
      */
     protected WritableByteChannel getWritableByteChannel() throws IOException
     {
-        if (writableByteChannel == null)
-            writableByteChannel = Channels.newChannel(getOutputStreamPriv());
-        return writableByteChannel;
+        WritableByteChannel channel = writableByteChannel;
+
+        if (channel == null) {
+            channel = Channels.newChannel(getOutputStreamPriv());
+            writableByteChannel = channel;
+        }
+        return channel;
     }
 
     /**
@@ -347,7 +358,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, or the operation is cancelled, the description is invalid, or the
      *                     server has closed safely.
      */
-    public void handleProtocolRequest(Description description, boolean write) throws IOException
+    public void handleProtocolRequest(@NotNull Description description, boolean write) throws IOException
     {
         InfoExchange exchange = null;
         ProtocolRequest protocolRequest;
@@ -411,7 +422,7 @@ public class ActiveConnection implements Closeable
      * @return The length of the bytes read.
      * @throws IOException If an IO error occurs.
      */
-    public int read(Description description) throws IOException
+    public int read(@NotNull Description description) throws IOException
     {
         verifyDescription(description);
         boolean chunked = description.flags.chunked();
@@ -459,7 +470,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, {@link CancelledException} if it was requested by any parties.
      * @see #readBegin(byte[], int)
      */
-    public Description readBegin() throws IOException
+    public @NotNull Description readBegin() throws IOException
     {
         return readBegin(new byte[DEFAULT_BUFFER_SIZE], DEFAULT_INVERSE_EXCHANGE_POINT);
     }
@@ -483,7 +494,7 @@ public class ActiveConnection implements Closeable
      * @see #readBegin()
      * @see Config#DEFAULT_INVERSE_EXCHANGE_POINT
      */
-    public Description readBegin(byte[] buffer, int inverseExchangePoint) throws IOException
+    public @NotNull Description readBegin(byte[] buffer, int inverseExchangePoint) throws IOException
     {
         ByteBuffer byteBuffer = ByteBuffer.wrap(buffer);
 
@@ -511,7 +522,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, i.e. fails to read the asked data length, or the given length is
      *                     larger than the byte buffer.
      */
-    protected void readOrFail(ByteBuffer byteBuffer, int length) throws IOException
+    protected void readOrFail(@NotNull ByteBuffer byteBuffer, int length) throws IOException
     {
         byteBuffer.clear();
         byteBuffer.limit(length);
@@ -533,7 +544,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, or there is cancel, close request, or the description has issues,
      *                     i.e. closed or invalid.
      */
-    public void readState(Description description) throws IOException
+    public void readState(@NotNull Description description) throws IOException
     {
         handleProtocolRequest(description, false);
     }
@@ -552,7 +563,7 @@ public class ActiveConnection implements Closeable
      * @see #receive()
      * @see #receive(OutputStream)
      */
-    public Response receive() throws IOException
+    public @NotNull Response receive() throws IOException
     {
         return receive(new ByteArrayOutputStream(), getInternalCacheSize());
     }
@@ -569,7 +580,7 @@ public class ActiveConnection implements Closeable
      * @see #receive()
      * @see #receive(OutputStream, int)
      */
-    public Response receive(OutputStream outputStream) throws IOException
+    public @Nullable Response receive(@NotNull OutputStream outputStream) throws IOException
     {
         return receive(outputStream, CoolSocket.LENGTH_UNSPECIFIED);
     }
@@ -600,7 +611,7 @@ public class ActiveConnection implements Closeable
      * @see #writeEnd(Description)
      * @see #write(Description, InputStream)
      */
-    public synchronized Response receive(OutputStream outputStream, int maxLength) throws IOException
+    public synchronized @NotNull Response receive(@NotNull OutputStream outputStream, int maxLength) throws IOException
     {
         int len;
         Description description = readBegin();
@@ -617,7 +628,7 @@ public class ActiveConnection implements Closeable
                 writableByteChannel.write(description.byteBuffer);
         } while (description.hasAvailable());
 
-        return new Response(getSocket().getRemoteSocketAddress(), description.flags.all(), description.totalLength,
+        return new Response(getSocket().getRemoteSocketAddress(), description.flags, description.totalLength,
                 outputStream instanceof ByteArrayOutputStream ? (ByteArrayOutputStream) outputStream : null);
     }
 
@@ -629,7 +640,7 @@ public class ActiveConnection implements Closeable
      * @param jsonObject To send.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public void reply(JSONObject jsonObject) throws IOException
+    public void reply(@NotNull JSONObject jsonObject) throws IOException
     {
         reply(jsonObject.toString());
     }
@@ -643,7 +654,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      * @see #reply(long, byte[])
      */
-    public void reply(String string) throws IOException
+    public void reply(@NotNull String string) throws IOException
     {
         reply(0, string.getBytes());
     }
@@ -658,7 +669,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      * @see #reply(long, byte[], int, int)
      */
-    public void reply(long flags, byte[] bytes) throws IOException
+    public void reply(long flags, byte @NotNull [] bytes) throws IOException
     {
         reply(flags, bytes, 0, bytes.length);
     }
@@ -674,7 +685,7 @@ public class ActiveConnection implements Closeable
      * @param length The length of the bytes to read and send.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public void reply(long flags, byte[] bytes, int offset, int length) throws IOException
+    public void reply(long flags, byte @NotNull [] bytes, int offset, int length) throws IOException
     {
         checkBounds(bytes.length, offset, length);
 
@@ -701,7 +712,7 @@ public class ActiveConnection implements Closeable
      * @see #reply(String)
      * @see #reply(long, InputStream, long)
      */
-    public void reply(long flags, InputStream inputStream) throws IOException
+    public void reply(long flags, @NotNull InputStream inputStream) throws IOException
     {
         reply(flags | Flags.FLAG_DATA_CHUNKED, inputStream, 0);
     }
@@ -723,7 +734,7 @@ public class ActiveConnection implements Closeable
      * @param fixedSize   The length of the data when complete.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public void reply(long flags, InputStream inputStream, long fixedSize) throws IOException
+    public void reply(long flags, @NotNull InputStream inputStream, long fixedSize) throws IOException
     {
         Description description = writeBegin(flags, fixedSize);
         write(description, inputStream);
@@ -753,15 +764,12 @@ public class ActiveConnection implements Closeable
      *
      * @param socket The socket instance.
      */
-    public void setSocket(Socket socket)
+    public void setSocket(@NotNull Socket socket)
     {
-        if (socket == null)
-            throw new NullPointerException("Socket cannot be null.");
-
-        if (!socket.isConnected())
-            throw new IllegalStateException("Socket should have a valid connection.");
-
+        checkSocket(socket);
         this.socket = socket;
+        this.writableByteChannel = null;
+        this.readableByteChannel = null;
     }
 
     /**
@@ -770,10 +778,11 @@ public class ActiveConnection implements Closeable
      * @param description That needs integrity-check.
      * @throws DescriptionClosedException If the given description is closed.
      */
-    public void verifyDescription(Description description) throws DescriptionClosedException
+    public void verifyDescription(@NotNull Description description) throws DescriptionClosedException
     {
-        if (!description.hasAvailable())
+        if (!description.hasAvailable()) {
             throw new DescriptionClosedException("This description is closed.", description);
+        }
     }
 
     /**
@@ -786,7 +795,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, {@link CancelledException} if the operation is cancelled.
      * @see #write(Description, byte[], int, int)
      */
-    public void write(Description description, byte[] bytes) throws IOException
+    public void write(@NotNull Description description, byte @NotNull [] bytes) throws IOException
     {
         write(description, bytes, 0, bytes.length);
     }
@@ -811,7 +820,7 @@ public class ActiveConnection implements Closeable
      * @see #write(Description, InputStream)
      * @see #writeEnd(Description)
      */
-    public synchronized void write(Description description, byte[] bytes, int offset, int length)
+    public synchronized void write(@NotNull Description description, byte @NotNull [] bytes, int offset, int length)
             throws IOException
     {
         verifyDescription(description);
@@ -851,7 +860,7 @@ public class ActiveConnection implements Closeable
      * @param inputStream To read from.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public synchronized void write(Description description, InputStream inputStream) throws IOException
+    public synchronized void write(@NotNull Description description, @NotNull InputStream inputStream) throws IOException
     {
         int len;
         byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
@@ -870,7 +879,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException When socket related IO error occurs.
      * @see #writeBegin(long, long)
      */
-    public synchronized Description writeBegin(long flags) throws IOException
+    public synchronized @NotNull Description writeBegin(long flags) throws IOException
     {
         return writeBegin(flags | Flags.FLAG_DATA_CHUNKED, 0);
     }
@@ -889,7 +898,7 @@ public class ActiveConnection implements Closeable
      * @return The description object for this write operation.
      * @throws IOException When socket related IO error occurs.
      */
-    public synchronized Description writeBegin(long flags, long totalLength) throws IOException
+    public synchronized @NotNull Description writeBegin(long flags, long totalLength) throws IOException
     {
         ByteBuffer byteBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
         int operationId = ++nextOperationId;
@@ -921,7 +930,7 @@ public class ActiveConnection implements Closeable
      *                                cancelled.
      * @throws SizeUnderflowException If the operation is not chunked, and there are bytes left.
      */
-    public synchronized void writeEnd(Description description) throws IOException
+    public synchronized void writeEnd(@NotNull Description description) throws IOException
     {
         if (!description.hasAvailable())
             return;
@@ -949,7 +958,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, or there is cancel, close request, or the description has issues,
      *                     i.e. closed or invalid.
      */
-    public void writeState(Description description) throws IOException
+    public void writeState(@NotNull Description description) throws IOException
     {
         handleProtocolRequest(description, true);
     }
@@ -965,7 +974,7 @@ public class ActiveConnection implements Closeable
          * Flags are created by {@link #readBegin()} or {@link #writeBegin(long, long)} and explain the conditions
          * of the operation.
          */
-        public final Flags flags;
+        public final @NotNull Flags flags;
 
         /**
          * The unique integer that verifies that read and write operations happens within the same description.
@@ -987,7 +996,7 @@ public class ActiveConnection implements Closeable
         /**
          * The byte buffer that manages transferring bytes.
          */
-        public final ByteBuffer byteBuffer;
+        public final @NotNull ByteBuffer byteBuffer;
 
         /**
          * This is filled as we read or write to the remote. If this is not a chunked transfer {@link Flags#chunked()},
@@ -1042,15 +1051,9 @@ public class ActiveConnection implements Closeable
          * @param inverseExchangePoint The point when receiver will send a {@link ProtocolRequest}.
          * @param byteBuffer           To cache the read or written data.
          */
-        public Description(Flags flags, int operationId, long totalLength, int inverseExchangePoint,
-                           ByteBuffer byteBuffer)
+        public Description(@NotNull Flags flags, int operationId, long totalLength, int inverseExchangePoint,
+                           @NotNull ByteBuffer byteBuffer)
         {
-            if (flags == null)
-                throw new NullPointerException("Flags cannot be null.");
-
-            if (byteBuffer == null)
-                throw new NullPointerException("Buffer cannot be null.");
-
             if (byteBuffer.capacity() < DEFAULT_BUFFER_SIZE)
                 throw new BufferUnderflowException();
 

@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.server;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
@@ -46,7 +47,7 @@ public interface ConnectionManager
      * @param coolSocket       The calling CoolSocket instance.
      * @param activeConnection To handle.
      */
-    void handleClient(CoolSocket coolSocket, ActiveConnection activeConnection);
+    void handleClient(@NotNull CoolSocket coolSocket, @NotNull ActiveConnection activeConnection);
 
     /**
      * Returns the list of active connections that are still ongoing. This list does not hold the connections that are
@@ -54,7 +55,7 @@ public interface ConnectionManager
      *
      * @return A copy list of active connections that are still alive.
      */
-    List<ActiveConnection> getActiveConnectionList();
+    List<@NotNull ActiveConnection> getActiveConnectionList();
 
     /**
      * Counts the total connection of a client to the CoolSocket server.
@@ -62,7 +63,7 @@ public interface ConnectionManager
      * @param address Client address.
      * @return Total number of connections.
      */
-    default int getConnectionCountByAddress(InetAddress address)
+    default int getConnectionCountByAddress(@NotNull InetAddress address)
     {
         int returnObject = 0;
 

@@ -1,36 +1,26 @@
 package org.monora.coolsocket.core.variant;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.CoolSocket;
-import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
-import java.net.SocketAddress;
 
 /**
  * This will send a static message that you can easily set via {@link #setStaticMessage(String)}.
  */
 public class StaticMessageCoolSocket extends CoolSocket
 {
-    private String message = null;
+    private @Nullable String message = null;
 
     public StaticMessageCoolSocket(int port)
     {
         super(port);
     }
 
-    public StaticMessageCoolSocket(SocketAddress address)
-    {
-        super(address);
-    }
-
-    public StaticMessageCoolSocket(ConfigFactory configFactory)
-    {
-        super(configFactory);
-    }
-
     @Override
-    public void onConnected(ActiveConnection activeConnection)
+    public void onConnected(@NotNull ActiveConnection activeConnection)
     {
         if (message == null)
             throw new IllegalStateException("The message should not be null");
@@ -47,7 +37,7 @@ public class StaticMessageCoolSocket extends CoolSocket
      *
      * @param message To be delivered.
      */
-    public void setStaticMessage(String message)
+    public void setStaticMessage(@Nullable String message)
     {
         this.message = message;
     }

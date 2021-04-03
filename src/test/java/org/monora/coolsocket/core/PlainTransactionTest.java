@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
@@ -107,7 +108,7 @@ public class PlainTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 for (int i = 0; i < loops; i++) {
                     try {
@@ -148,7 +149,7 @@ public class PlainTransactionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.reply(0, message.getBytes(charsetName));

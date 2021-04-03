@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.session;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.session.ActiveConnection.Description;
 
 /**
@@ -18,7 +20,8 @@ public class DescriptionMismatchException extends DescriptionException
      * @param description         The description object that was led to this error.
      * @param remoteDescriptionId The description identity number reported by remote.
      */
-    public DescriptionMismatchException(String msg, Description description, int remoteDescriptionId)
+    public DescriptionMismatchException(@Nullable String msg, @NotNull Description description,
+                                        int remoteDescriptionId)
     {
         super(msg, description);
         this.remoteDescriptionId = remoteDescriptionId;

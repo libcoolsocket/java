@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.session;
 
+import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.session.ActiveConnection.Description;
 
 /**
@@ -13,7 +14,7 @@ public class DescriptionClosedException extends DescriptionException
      * @param msg         The message explaining this error.
      * @param description The description object that was led to this error.
      */
-    public DescriptionClosedException(String msg, Description description)
+    public DescriptionClosedException(@Nullable String msg, Description description)
     {
         super(msg, description);
     }

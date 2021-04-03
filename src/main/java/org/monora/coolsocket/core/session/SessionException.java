@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.session;
 
+import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.protocol.ProtocolException;
 
 /**
@@ -15,7 +16,7 @@ public class SessionException extends ProtocolException
      *
      * @param message The explanation for this error.
      */
-    public SessionException(String message)
+    public SessionException(@Nullable String message)
     {
         super(message);
     }

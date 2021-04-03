@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.response;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.IOException;
 
 /**
@@ -25,7 +27,7 @@ public abstract class SizeMismatchException extends IOException
      * @param sizeExpected The size that was expected.
      * @param sizeGot      The size that was given.
      */
-    public SizeMismatchException(String description, long sizeExpected, long sizeGot)
+    public SizeMismatchException(@Nullable String description, long sizeExpected, long sizeGot)
     {
         super(description);
         this.sizeExpected = sizeExpected;

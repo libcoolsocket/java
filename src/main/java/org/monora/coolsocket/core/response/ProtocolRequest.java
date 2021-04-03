@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.response;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Protocol requests are a way of exchanging information between two peers.
  * <p>
@@ -62,7 +64,7 @@ public enum ProtocolRequest
      * @param ordinal For the expected protocol request object.
      * @return The found protocol request object, or the default {@link ProtocolRequest#None}.
      */
-    public static ProtocolRequest from(int ordinal)
+    public static @NotNull ProtocolRequest from(int ordinal)
     {
         ProtocolRequest[] values = values();
         if (ordinal < 0 || ordinal >= values.length)

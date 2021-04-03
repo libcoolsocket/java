@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -101,7 +102,7 @@ public class ClientManagementTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     while (activeConnection.getSocket().isConnected())
@@ -117,6 +118,8 @@ public class ClientManagementTest
 
         CoolSocket.Session session = coolSocket.getSession();
         ActiveConnection[] connections = new ActiveConnection[5];
+
+        Assert.assertNotNull(session);
 
         for (int i = 0; i < connections.length; i++) {
             ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(localhost, PORT));
@@ -148,7 +151,7 @@ public class ClientManagementTest
     public static class LoopClientHandler implements ClientHandler
     {
         @Override
-        public void onConnected(ActiveConnection activeConnection)
+        public void onConnected(@NotNull ActiveConnection activeConnection)
         {
             try {
                 while (activeConnection.getSocket().isConnected())
@@ -171,7 +174,7 @@ public class ClientManagementTest
         }
 
         @Override
-        public ConnectionManager createConnectionManager()
+        public @NotNull ConnectionManager createConnectionManager()
         {
             DefaultConnectionManager connectionManager = new DefaultConnectionManager();
             connectionManager.setClosingContract(waitForExit, closingContract);

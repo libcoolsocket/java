@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.monora.coolsocket.core.config.Config;
@@ -22,7 +23,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.cancel();
@@ -49,7 +50,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.cancel();
@@ -78,7 +79,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.cancel();
@@ -122,7 +123,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.readBegin();
@@ -181,7 +182,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.closeSafely();
@@ -209,7 +210,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.closeSafely();
@@ -239,7 +240,7 @@ public class CommandExecutionTest
         CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     activeConnection.closeSafely();
@@ -278,7 +279,7 @@ public class CommandExecutionTest
         final CoolSocket coolSocket = new CoolSocket(PORT)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(@NotNull ActiveConnection activeConnection)
             {
                 try {
                     ActiveConnection.Description description = activeConnection.readBegin();

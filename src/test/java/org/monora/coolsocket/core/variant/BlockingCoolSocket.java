@@ -1,12 +1,11 @@
 package org.monora.coolsocket.core.variant;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
-import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
 
 import java.io.IOException;
-import java.net.SocketAddress;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 
@@ -23,22 +22,12 @@ public class BlockingCoolSocket extends CoolSocket
         super(port);
     }
 
-    public BlockingCoolSocket(SocketAddress address)
-    {
-        super(address);
-    }
-
-    public BlockingCoolSocket(ConfigFactory configFactory)
-    {
-        super(configFactory);
-    }
-
     @Override
-    public final void onConnected(ActiveConnection activeConnection)
+    public final void onConnected(@NotNull ActiveConnection activeConnection)
     {
         try {
             responseQueue.put(activeConnection.receive());
-        } catch (IOException | InterruptedException e) {
+        } catch (@NotNull IOException | InterruptedException e) {
             e.printStackTrace();
         }
     }
@@ -49,7 +38,7 @@ public class BlockingCoolSocket extends CoolSocket
      * @return The response the client sent.
      * @throws InterruptedException If the calling thread goes into the interrupted state.
      */
-    public Response waitForResponse() throws InterruptedException
+    public @NotNull Response waitForResponse() throws InterruptedException
     {
         return responseQueue.take();
     }

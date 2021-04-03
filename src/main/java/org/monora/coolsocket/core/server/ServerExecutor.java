@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.server;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.config.ConfigFactory;
 import org.monora.coolsocket.core.session.ActiveConnection;
@@ -27,6 +28,6 @@ public interface ServerExecutor
      * @param serverSocket      The server socket that will accept the connections.
      * @throws Exception If an unrecoverable error occurs (e.g., creating a server socket fails).
      */
-    void onSession(CoolSocket coolSocket, ConfigFactory configFactory, ConnectionManager connectionManager,
-                   ServerSocket serverSocket) throws Exception;
+    void onSession(@NotNull CoolSocket coolSocket, @NotNull ConfigFactory configFactory,
+                   @NotNull ConnectionManager connectionManager, @NotNull ServerSocket serverSocket) throws Exception;
 }

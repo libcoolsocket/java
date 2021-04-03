@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core.server;
 
+import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 
 /**
@@ -15,5 +16,5 @@ public interface ServerExecutorFactory
      *
      * @return The produced server executor.
      */
-    ServerExecutor createServerExecutor();
+    @NotNull ServerExecutor createServerExecutor();
 }

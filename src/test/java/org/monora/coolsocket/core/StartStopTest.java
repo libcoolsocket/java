@@ -1,5 +1,6 @@
 package org.monora.coolsocket.core;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -86,7 +87,7 @@ public class StartStopTest
         }
 
         @Override
-        public void onConnected(ActiveConnection activeConnection)
+        public void onConnected(@NotNull ActiveConnection activeConnection)
         {
         }
     }

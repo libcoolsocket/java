@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.protocol;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.IOException;
 
 /**
@@ -12,7 +14,7 @@ public class ProtocolException extends IOException
      *
      * @param message To describe the issue.
      */
-    public ProtocolException(String message)
+    public ProtocolException(@Nullable String message)
     {
         super(message);
     }

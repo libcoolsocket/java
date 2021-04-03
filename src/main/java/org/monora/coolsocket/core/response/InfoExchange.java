@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.response;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * This enum encapsulates the type of info that can be exchanged. This is used when the protocol request
  * {@link ProtocolRequest#InfoExchange} is requested by any side of the communication.
@@ -21,7 +23,7 @@ public enum InfoExchange
      * @return The matching enum.
      * @throws UnsupportedFeatureException If the request cannot be satisfied.
      */
-    public static InfoExchange from(int ordinal) throws UnsupportedFeatureException
+    public static @NotNull InfoExchange from(int ordinal) throws UnsupportedFeatureException
     {
         InfoExchange[] values = values();
         if (ordinal < 0 || ordinal >= values.length)

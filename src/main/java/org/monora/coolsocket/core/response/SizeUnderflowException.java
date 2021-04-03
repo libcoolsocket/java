@@ -1,5 +1,7 @@
 package org.monora.coolsocket.core.response;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * This exception is thrown when the length of data falls behind what was expected.
  */
@@ -13,7 +15,7 @@ public class SizeUnderflowException extends SizeMismatchException
      * @param sizeExpected The size that was expected.
      * @param sizeGot      The size that was given.
      */
-    public SizeUnderflowException(String description, long sizeExpected, long sizeGot)
+    public SizeUnderflowException(@Nullable String description, long sizeExpected, long sizeGot)
     {
         super(description, sizeExpected, sizeGot);
     }

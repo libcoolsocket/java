@@ -15,7 +15,10 @@ public class Flags
      */
     public static final int FLAG_DATA_CHUNKED = 1;
 
-    private final long flags;
+    /**
+     * All the flags encapsulated by this instance.
+     */
+    public final long flags;
 
     /**
      * Create a new instance.
@@ -25,16 +28,6 @@ public class Flags
     public Flags(long flags)
     {
         this.flags = flags;
-    }
-
-    /**
-     * Get all the flags that is encapsulated by this instance.
-     *
-     * @return The flags that is in long integer format.
-     */
-    public long all()
-    {
-        return flags;
     }
 
     /**
