@@ -221,6 +221,8 @@ public class ActiveConnection implements Closeable
             case ProtocolVersion:
                 description.byteBuffer.putInt(Config.PROTOCOL_VERSION);
                 break;
+            default:
+                throw new UnsupportedFeatureException("Requested feature is unsupported.");
         }
 
         description.byteBuffer.flip();
@@ -339,7 +341,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException If an IO error occurs, or the operation is cancelled, the description is invalid, or the
      *                     server has closed safely.
      */
-    public void handleByteBreak(Description description, boolean write) throws IOException
+    public void handleProtocolRequest(Description description, boolean write) throws IOException
     {
         InfoExchange exchange = null;
         ProtocolRequest protocolRequest;
@@ -390,7 +392,7 @@ public class ActiveConnection implements Closeable
                 return;
         }
 
-        handleByteBreak(description, write);
+        handleProtocolRequest(description, write);
     }
 
     /**
@@ -527,7 +529,7 @@ public class ActiveConnection implements Closeable
      */
     public void readState(Description description) throws IOException
     {
-        handleByteBreak(description, false);
+        handleProtocolRequest(description, false);
     }
 
     /**
@@ -942,7 +944,7 @@ public class ActiveConnection implements Closeable
      */
     public void writeState(Description description) throws IOException
     {
-        handleByteBreak(description, true);
+        handleProtocolRequest(description, true);
     }
 
     /**
