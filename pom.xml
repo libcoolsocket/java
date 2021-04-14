@@ -8,7 +8,7 @@
     <version>2.0-rc16</version>
     <name>CoolSocket</name>
     <description>Bidirectional TCP socket layer and server</description>
-    <url>https://github.com//libcoolsocket/java</url>
+    <url>https://github.com/libcoolsocket</url>
     <licenses>
         <license>
             <name>MIT License</name>
