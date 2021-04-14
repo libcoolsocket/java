@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.monora.coolsocket</groupId>
@@ -18,22 +17,24 @@
     </licenses>
     <developers>
         <developer>
-            <id>monora</id>
-            <name>monora</name>
-            <email>contact@monora.org</email>
+            <id>tasali</id>
+            <name>Veli Tasalı</name>
+            <email>me@velitasali.com</email>
+            <organization>monora</organization>
+            <organizationUrl>https://monora.org</organizationUrl>
         </developer>
     </developers>
     <scm>
-        <connection>https://github.com/libcoolsocket/java.git</connection>
-        <developerConnection>https://monora.org</developerConnection>
+        <connection>scm:git:git://github.com/libcoolsocket/java.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com:libcoolsocket/java.git</developerConnection>
         <url>https://github.com/libcoolsocket/java</url>
     </scm>
 
     <repositories>
-        <repository>
+        <!--<repository>
             <id>jcenter</id>
             <url>https://jcenter.bintray.com/</url>
-        </repository>
+        </repository>-->
     </repositories>
 
     <properties>
@@ -125,6 +126,20 @@
                 <configuration>
                     <releaseProfiles>release</releaseProfiles>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
