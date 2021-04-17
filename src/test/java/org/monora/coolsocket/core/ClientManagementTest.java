@@ -14,11 +14,9 @@ import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
 import org.monora.coolsocket.core.variant.Connections;
 import org.monora.coolsocket.core.variant.DefaultCoolSocket;
-import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.SocketException;
 
 public class ClientManagementTest
