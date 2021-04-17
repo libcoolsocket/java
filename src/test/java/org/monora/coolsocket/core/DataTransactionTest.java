@@ -9,12 +9,13 @@ import org.monora.coolsocket.core.response.SizeOverflowException;
 import org.monora.coolsocket.core.response.SizeUnderflowException;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.DescriptionClosedException;
+import org.monora.coolsocket.core.variant.Connections;
+import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
@@ -22,8 +23,6 @@ import java.util.Arrays;
 
 public class DataTransactionTest
 {
-    public static final int PORT = 3789;
-
     @Test(timeout = 3000)
     public void readWritesToAnyOutputTest() throws IOException, InterruptedException
     {
@@ -33,7 +32,7 @@ public class DataTransactionTest
 
         final InputStream inputStream = new ByteArrayInputStream(message.getBytes());
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -54,7 +53,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.readBegin();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
@@ -75,7 +74,7 @@ public class DataTransactionTest
     @Test(expected = SizeMismatchException.class)
     public void exceedingInternalCacheGivesError() throws IOException, InterruptedException
     {
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -92,7 +91,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         activeConnection.setInternalCacheSize(100);
 
         try {
@@ -108,7 +107,7 @@ public class DataTransactionTest
     {
         final int size = 8192;
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -125,7 +124,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         activeConnection.setInternalCacheSize(size);
         activeConnection.receive();
         activeConnection.close();
@@ -142,7 +141,7 @@ public class DataTransactionTest
         final byte[] messageBytes = message.getBytes();
         final InputStream inputStream = new ByteArrayInputStream(messageBytes);
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -157,7 +156,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
         activeConnection.close();
         coolSocket.stop();
@@ -172,7 +171,7 @@ public class DataTransactionTest
         final byte[] messageBytes = message.getBytes();
         final InputStream inputStream = new ByteArrayInputStream(messageBytes);
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -189,7 +188,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         Assert.assertEquals("The message length should be zero.", 0, activeConnection.receive().length);
 
         activeConnection.close();
@@ -200,7 +199,7 @@ public class DataTransactionTest
     public void sizeBelowDuringReadTest() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -219,7 +218,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.receive();
         } finally {
             coolSocket.stop();
@@ -230,7 +229,7 @@ public class DataTransactionTest
     public void sizeBelowDuringWriteTest() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -246,7 +245,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length + 1);
             activeConnection.write(description, bytes);
             activeConnection.writeEnd(description);
@@ -259,7 +258,7 @@ public class DataTransactionTest
     public void sizeAboveDuringWriteTest() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -275,7 +274,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length - 1);
             activeConnection.write(description, bytes);
             activeConnection.writeEnd(description);
@@ -289,7 +288,7 @@ public class DataTransactionTest
     {
         final String message = "Hello, World!";
         final byte[] bytes = message.getBytes();
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -311,7 +310,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             Assert.assertEquals("The messages should match.", message,
                     activeConnection.receive().getAsString());
         } finally {
@@ -323,7 +322,7 @@ public class DataTransactionTest
     public void descriptionUnusableAfterFinishedFixed() throws IOException, InterruptedException
     {
         final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -338,7 +337,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length);
             activeConnection.write(description, bytes);
             activeConnection.writeEnd(description);
@@ -353,7 +352,7 @@ public class DataTransactionTest
     public void descriptionUnusableAfterFinishedChunked() throws IOException, InterruptedException
     {
         final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -368,7 +367,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0);
             activeConnection.write(description, bytes);
             activeConnection.writeEnd(description);
@@ -383,7 +382,7 @@ public class DataTransactionTest
     public void descriptionUnusableAfterFinishedFixedRead() throws IOException, InterruptedException
     {
         final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -398,7 +397,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.readBegin();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
@@ -421,7 +420,7 @@ public class DataTransactionTest
 
         Arrays.fill(data, (byte) 2);
 
-        final CoolSocket coolSocket = new CoolSocket(PORT)
+        final CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -441,7 +440,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             long startTime = System.nanoTime();
             ActiveConnection.Description description = activeConnection.readBegin();
             do {
@@ -456,7 +455,7 @@ public class DataTransactionTest
     @Test
     public void fixedZeroBytesTest() throws IOException, InterruptedException
     {
-        final CoolSocket coolSocket = new CoolSocket(PORT)
+        final CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -472,7 +471,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.readBegin();
             while (description.hasAvailable()) {
                 activeConnection.read(description);
@@ -487,7 +486,7 @@ public class DataTransactionTest
     {
         final int customPoint = 28;
 
-        final CoolSocket coolSocket = new CoolSocket(PORT)
+        final CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -506,7 +505,7 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0, 0);
             activeConnection.writeEnd(description);
 

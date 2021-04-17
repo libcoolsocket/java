@@ -7,7 +7,10 @@ import org.monora.coolsocket.core.config.Config;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
+import org.monora.coolsocket.core.variant.Connections;
+import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 import org.monora.coolsocket.core.variant.StaticMessageCoolSocket;
+import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -15,12 +18,10 @@ import java.net.SocketException;
 
 public class CommandExecutionTest
 {
-    private static final int PORT = 3547;
-
     @Test(expected = CancelledException.class)
     public void cancellationDuringWriteBeginTest() throws IOException, InterruptedException
     {
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -37,7 +38,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.readBegin();
         } finally {
             coolSocket.stop();
@@ -47,7 +48,7 @@ public class CommandExecutionTest
     @Test(expected = CancelledException.class)
     public void cancellationDuringReadBeginTest() throws IOException, InterruptedException
     {
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket() 
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -64,7 +65,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.writeBegin(0);
         } finally {
             coolSocket.stop();
@@ -76,7 +77,7 @@ public class CommandExecutionTest
     {
         final String message = "Where we are from there is no sun.";
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -99,7 +100,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
 
         try {
             activeConnection.writeBegin(0);
@@ -120,7 +121,7 @@ public class CommandExecutionTest
     {
         final String message = "The stars and moon are there! And we are going to climb it!";
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -141,7 +142,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0);
 
             try {
@@ -159,11 +160,11 @@ public class CommandExecutionTest
     public void exchangeProtocolVersionTest() throws IOException, InterruptedException
     {
         final String message = "It is a long way home but a fun one.";
-        StaticMessageCoolSocket coolSocket = new StaticMessageCoolSocket(PORT);
+        StaticMessageCoolSocket coolSocket = new StaticMessageCoolSocket();
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.receive();
 
             Assert.assertEquals("The protocol version should be the same.",
@@ -179,7 +180,7 @@ public class CommandExecutionTest
     public void closeSafelyTest() throws IOException, InterruptedException
     {
         final String message = "It is a long way home but a fun one.";
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -196,7 +197,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.receive();
         } finally {
             coolSocket.stop();
@@ -207,7 +208,7 @@ public class CommandExecutionTest
     public void closeSafelyRemoteCloseProcessedTest() throws IOException, InterruptedException
     {
         final String message = "It is a long way home but a fun one.";
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -224,7 +225,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.receive();
         } catch (ClosedException e) {
             Assert.assertTrue("The close operation should be requested by the remote.", e.remoteRequested);
@@ -237,7 +238,7 @@ public class CommandExecutionTest
     public void closeSafelyClosesConnectionTest() throws IOException, InterruptedException
     {
         final String message = "It is a long way home but a fun one.";
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -261,7 +262,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             try {
                 activeConnection.receive();
             } catch (ClosedException e) {
@@ -276,7 +277,7 @@ public class CommandExecutionTest
     public void readerCancelsWhenReadingLargeChunksTest() throws InterruptedException, IOException
     {
         final byte[] data = new byte[8192];
-        final CoolSocket coolSocket = new CoolSocket(PORT)
+        final CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -297,7 +298,7 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             ActiveConnection.Description description = activeConnection.writeBegin(0);
             while (activeConnection.getSocket().isConnected()) {
                 activeConnection.write(description, data);

@@ -12,6 +12,9 @@ import org.monora.coolsocket.core.server.DefaultConnectionManager;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
+import org.monora.coolsocket.core.variant.Connections;
+import org.monora.coolsocket.core.variant.DefaultCoolSocket;
+import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -20,11 +23,9 @@ import java.net.SocketException;
 
 public class ClientManagementTest
 {
-    public static final int PORT = 58433;
-
     public static final String MSG = "HEY!";
 
-    private final CoolSocket coolSocket = new CoolSocket(PORT);
+    private final CoolSocket coolSocket = new DefaultCoolSocket();
 
     void startDelayedShutdown(CoolSocket coolSocket)
     {
@@ -57,7 +58,7 @@ public class ClientManagementTest
 
         startDelayedShutdown(coolSocket);
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             while (activeConnection.getSocket().isConnected())
                 activeConnection.receive();
         }
@@ -72,7 +73,7 @@ public class ClientManagementTest
 
         startDelayedShutdown(coolSocket);
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             while (activeConnection.getSocket().isConnected())
                 activeConnection.receive();
         }
@@ -87,7 +88,7 @@ public class ClientManagementTest
 
         startDelayedShutdown(coolSocket);
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             while (activeConnection.getSocket().isConnected())
                 activeConnection.receive();
         }
@@ -97,9 +98,8 @@ public class ClientManagementTest
     public void countClientConnectionsTest() throws IOException, InterruptedException
     {
         final String message = "Hey!";
-        final InetAddress localhost = InetAddress.getLoopbackAddress();
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -122,7 +122,7 @@ public class ClientManagementTest
         Assert.assertNotNull(session);
 
         for (int i = 0; i < connections.length; i++) {
-            ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(localhost, PORT));
+            ActiveConnection activeConnection = Connections.connect();
             connections[i] = activeConnection;
 
             activeConnection.reply(message);
@@ -132,7 +132,7 @@ public class ClientManagementTest
                 session.getConnectionManager().getActiveConnectionList().size());
 
         Assert.assertEquals("Number of connections should be same.", connections.length,
-                session.getConnectionManager().getConnectionCountByAddress(localhost));
+                session.getConnectionManager().getConnectionCountByAddress(InetAddress.getLocalHost()));
 
         for (ActiveConnection activeConnection : connections) {
             try {

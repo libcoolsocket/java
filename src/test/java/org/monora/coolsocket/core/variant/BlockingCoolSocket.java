@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
@@ -17,9 +18,9 @@ public class BlockingCoolSocket extends CoolSocket
 {
     private final BlockingQueue<Response> responseQueue = new SynchronousQueue<>();
 
-    public BlockingCoolSocket(int port)
+    public BlockingCoolSocket()
     {
-        super(port);
+        super(new TestConfigFactory());
     }
 
     @Override

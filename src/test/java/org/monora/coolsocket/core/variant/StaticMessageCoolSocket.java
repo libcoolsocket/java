@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 
@@ -14,9 +15,9 @@ public class StaticMessageCoolSocket extends CoolSocket
 {
     private @Nullable String message = null;
 
-    public StaticMessageCoolSocket(int port)
+    public StaticMessageCoolSocket()
     {
-        super(port);
+        super(new TestConfigFactory());
     }
 
     @Override

@@ -7,25 +7,25 @@ import org.junit.Test;
 import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.variant.BlockingCoolSocket;
+import org.monora.coolsocket.core.variant.Connections;
+import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 import org.monora.coolsocket.core.variant.StaticMessageCoolSocket;
+import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 public class PlainTransactionTest
 {
-    private static final int PORT = 5506;
-
     @Test
     public void receiveTextDataTest() throws IOException, InterruptedException
     {
         final String message = "The quick brown fox jumped over the lazy dog!";
 
-        StaticMessageCoolSocket coolSocket = new StaticMessageCoolSocket(PORT);
+        StaticMessageCoolSocket coolSocket = new StaticMessageCoolSocket();
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         Response response = activeConnection.receive();
 
         activeConnection.close();
@@ -40,10 +40,10 @@ public class PlainTransactionTest
     {
         final String message = "Almost before we knew it, we had left the ground.";
 
-        BlockingCoolSocket coolSocket = new BlockingCoolSocket(PORT);
+        BlockingCoolSocket coolSocket = new BlockingCoolSocket();
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         activeConnection.reply(message);
 
         Response response = coolSocket.waitForResponse();
@@ -58,11 +58,11 @@ public class PlainTransactionTest
     {
         final String message = "Stop acting so small. You are the universe in ecstatic motion.";
 
-        StaticMessageCoolSocket coolSocket = new StaticMessageCoolSocket(PORT);
+        StaticMessageCoolSocket coolSocket = new StaticMessageCoolSocket();
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         Response response = activeConnection.receive();
 
         activeConnection.close();
@@ -78,10 +78,10 @@ public class PlainTransactionTest
                 .put("key1", "value1")
                 .put("key2", 2);
 
-        BlockingCoolSocket coolSocket = new BlockingCoolSocket(PORT);
+        BlockingCoolSocket coolSocket = new BlockingCoolSocket();
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
         activeConnection.reply(headerJson);
 
         Response response = coolSocket.waitForResponse();
@@ -105,7 +105,7 @@ public class PlainTransactionTest
         final String message = "Back to the days of Yore when we were sure of a good long summer.";
         final int loops = 20;
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -125,7 +125,7 @@ public class PlainTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT));
+        ActiveConnection activeConnection = Connections.connect();
 
         for (int i = 0; i < loops; i++) {
             activeConnection.reply(message);
@@ -146,7 +146,7 @@ public class PlainTransactionTest
         final String message = "ğüşiöç";
         final JSONObject jsonObject = new JSONObject().put("key", message);
         final String charsetName = "ISO-8859-9";
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -162,7 +162,7 @@ public class PlainTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             Assert.assertEquals("The messages should match.", message,
                     activeConnection.receive().getAsString(charsetName));
             Assert.assertEquals("The messages should match.", jsonObject.toString(),
