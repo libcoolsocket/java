@@ -14,6 +14,7 @@ import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
 import org.monora.coolsocket.core.variant.Connections;
 import org.monora.coolsocket.core.variant.DefaultCoolSocket;
+import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -116,31 +117,34 @@ public class ClientManagementTest
 
         CoolSocket.Session session = coolSocket.getSession();
         ActiveConnection[] connections = new ActiveConnection[5];
+        InetAddress localhost = InetAddress.getByName(TestConfigFactory.SOCKET_ADDRESS_HOST);
 
-        Assert.assertNotNull(session);
+        try {
+            Assert.assertNotNull(session);
 
-        for (int i = 0; i < connections.length; i++) {
-            ActiveConnection activeConnection = Connections.connect();
-            connections[i] = activeConnection;
+            for (int i = 0; i < connections.length; i++) {
+                ActiveConnection activeConnection = Connections.connect();
+                connections[i] = activeConnection;
 
-            activeConnection.reply(message);
-        }
-
-        Assert.assertEquals("Number of connections should be same.", connections.length,
-                session.getConnectionManager().getActiveConnectionList().size());
-
-        Assert.assertEquals("Number of connections should be same.", connections.length,
-                session.getConnectionManager().getConnectionCountByAddress(InetAddress.getLocalHost()));
-
-        for (ActiveConnection activeConnection : connections) {
-            try {
-                activeConnection.closeSafely();
                 activeConnection.reply(message);
-            } catch (ClosedException ignored) {
             }
-        }
 
-        coolSocket.stop();
+            Assert.assertEquals("Number of connections should be same.", connections.length,
+                    session.getConnectionManager().getActiveConnectionList().size());
+
+            Assert.assertEquals("Number of connections should be same.", connections.length,
+                    session.getConnectionManager().getConnectionCountByAddress(localhost));
+
+            for (ActiveConnection activeConnection : connections) {
+                try {
+                    activeConnection.closeSafely();
+                    activeConnection.reply(message);
+                } catch (ClosedException ignored) {
+                }
+            }
+        } finally {
+            coolSocket.stop();
+        }
 
         Assert.assertEquals("Connections should zeroed", 0,
                 session.getConnectionManager().getActiveConnectionList().size());

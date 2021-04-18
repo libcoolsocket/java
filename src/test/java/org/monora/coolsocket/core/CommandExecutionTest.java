@@ -10,10 +10,8 @@ import org.monora.coolsocket.core.session.ClosedException;
 import org.monora.coolsocket.core.variant.Connections;
 import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 import org.monora.coolsocket.core.variant.StaticMessageCoolSocket;
-import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.SocketException;
 
 public class CommandExecutionTest
@@ -48,7 +46,7 @@ public class CommandExecutionTest
     @Test(expected = CancelledException.class)
     public void cancellationDuringReadBeginTest() throws IOException, InterruptedException
     {
-        CoolSocket coolSocket = new DefaultCoolSocket() 
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -100,20 +98,23 @@ public class CommandExecutionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-
         try {
-            activeConnection.writeBegin(0);
-        } catch (CancelledException ignored) {
-        } catch (IOException e) {
-            e.printStackTrace();
+            ActiveConnection activeConnection = Connections.connect();
+
+            try {
+                activeConnection.writeBegin(0);
+            } catch (CancelledException ignored) {
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            Assert.assertEquals("The messages should be the same.", message,
+                    activeConnection.receive().getAsString());
+
+            activeConnection.close();
+        } finally {
+            coolSocket.stop();
         }
-
-        Assert.assertEquals("The messages should be the same.", message,
-                activeConnection.receive().getAsString());
-
-        activeConnection.close();
-        coolSocket.stop();
     }
 
     @Test

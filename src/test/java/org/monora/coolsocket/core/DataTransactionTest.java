@@ -68,7 +68,6 @@ public class DataTransactionTest
         } finally {
             coolSocket.stop();
         }
-
     }
 
     @Test(expected = SizeMismatchException.class)
@@ -91,13 +90,10 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        activeConnection.setInternalCacheSize(100);
-
-        try {
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.setInternalCacheSize(100);
             activeConnection.receive();
         } finally {
-            activeConnection.close();
             coolSocket.stop();
         }
     }
@@ -124,11 +120,12 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        activeConnection.setInternalCacheSize(size);
-        activeConnection.receive();
-        activeConnection.close();
-        coolSocket.stop();
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.setInternalCacheSize(size);
+            activeConnection.receive();
+        } finally {
+            coolSocket.stop();
+        }
     }
 
     @Test
@@ -156,10 +153,11 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
-        activeConnection.close();
-        coolSocket.stop();
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
+        } finally {
+            coolSocket.stop();
+        }
     }
 
     @Test
@@ -188,11 +186,12 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        Assert.assertEquals("The message length should be zero.", 0, activeConnection.receive().length);
-
-        activeConnection.close();
-        coolSocket.stop();
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            Assert.assertEquals("The message length should be zero.", 0,
+                    activeConnection.receive().length);
+        } finally {
+            coolSocket.stop();
+        }
     }
 
     @Test(expected = SizeUnderflowException.class)

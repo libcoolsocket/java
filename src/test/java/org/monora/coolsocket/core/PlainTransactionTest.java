@@ -10,7 +10,6 @@ import org.monora.coolsocket.core.variant.BlockingCoolSocket;
 import org.monora.coolsocket.core.variant.Connections;
 import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 import org.monora.coolsocket.core.variant.StaticMessageCoolSocket;
-import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
 
@@ -25,14 +24,15 @@ public class PlainTransactionTest
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        Response response = activeConnection.receive();
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            Response response = activeConnection.receive();
 
-        activeConnection.close();
-        coolSocket.stop();
-
-        Assert.assertTrue("The response should have a body.", response.containsData());
-        Assert.assertEquals("The sent and received msg should be the same.", message, response.getAsString());
+            Assert.assertTrue("The response should have a body.", response.containsData());
+            Assert.assertEquals("The sent and received msg should be the same.", message,
+                    response.getAsString());
+        } finally {
+            coolSocket.stop();
+        }
     }
 
     @Test(timeout = 3000)
@@ -43,14 +43,14 @@ public class PlainTransactionTest
         BlockingCoolSocket coolSocket = new BlockingCoolSocket();
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        activeConnection.reply(message);
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.reply(message);
 
-        Response response = coolSocket.waitForResponse();
-        Assert.assertEquals("The messages should be same", message, response.getAsString());
-
-        activeConnection.close();
-        coolSocket.stop();
+            Response response = coolSocket.waitForResponse();
+            Assert.assertEquals("The messages should be same", message, response.getAsString());
+        } finally {
+            coolSocket.stop();
+        }
     }
 
     @Test
@@ -62,13 +62,12 @@ public class PlainTransactionTest
         coolSocket.setStaticMessage(message);
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-        Response response = activeConnection.receive();
-
-        activeConnection.close();
-        coolSocket.stop();
-
-        Assert.assertEquals("The length should be the same.", message.length(), response.length);
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            Response response = activeConnection.receive();
+            Assert.assertEquals("The length should be the same.", message.length(), response.length);
+        } finally {
+            coolSocket.stop();
+        }
     }
 
     @Test
@@ -125,19 +124,18 @@ public class PlainTransactionTest
 
         coolSocket.start();
 
-        ActiveConnection activeConnection = Connections.connect();
-
-        for (int i = 0; i < loops; i++) {
-            activeConnection.reply(message);
-            activeConnection.reply(message);
-            Assert.assertEquals("The message should match with the original.", message,
-                    activeConnection.receive().getAsString());
-            Assert.assertEquals("The message should match with the original.", message,
-                    activeConnection.receive().getAsString());
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            for (int i = 0; i < loops; i++) {
+                activeConnection.reply(message);
+                activeConnection.reply(message);
+                Assert.assertEquals("The message should match with the original.", message,
+                        activeConnection.receive().getAsString());
+                Assert.assertEquals("The message should match with the original.", message,
+                        activeConnection.receive().getAsString());
+            }
+        } finally {
+            coolSocket.stop();
         }
-
-        activeConnection.close();
-        coolSocket.stop();
     }
 
     @Test

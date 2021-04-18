@@ -4,20 +4,19 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.Test;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.DescriptionMismatchException;
+import org.monora.coolsocket.core.variant.Connections;
+import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 public class SafetyTest
 {
-    public static final int PORT = 43244;
-
     @Test(expected = DescriptionMismatchException.class)
     public void blockReadingFromForeignDescription() throws IOException, InterruptedException
     {
         final byte[] bytes = new byte[10];
 
-        CoolSocket coolSocket = new CoolSocket(PORT)
+        CoolSocket coolSocket = new DefaultCoolSocket()
         {
             @Override
             public void onConnected(@NotNull ActiveConnection activeConnection)
@@ -35,7 +34,7 @@ public class SafetyTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(PORT))) {
+        try (ActiveConnection activeConnection = Connections.connect()) {
             activeConnection.readBegin();
             ActiveConnection.Description description2 = activeConnection.readBegin();
 

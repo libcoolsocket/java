@@ -15,8 +15,12 @@ public class ConfigTest
         Assert.assertEquals("The random port should be 0 when not started.", 0,
                 coolSocket.getLocalPort());
         coolSocket.start();
-        Assert.assertNotEquals("The random port should be the assigned port when started",
-                coolSocket.getLocalPort(), 0);
-        coolSocket.stop();
+
+        try {
+            Assert.assertNotEquals("The random port should be the assigned port when started",
+                    coolSocket.getLocalPort(), 0);
+        } finally {
+            coolSocket.stop();
+        }
     }
 }
