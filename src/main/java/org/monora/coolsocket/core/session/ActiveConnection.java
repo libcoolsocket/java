@@ -42,6 +42,8 @@ public class ActiveConnection implements Closeable
 
     private boolean closeRequested;
 
+    private boolean roaming = false;
+
     /**
      * Create an instance with a socket connection to a CoolSocket server.
      *
@@ -410,6 +412,33 @@ public class ActiveConnection implements Closeable
         }
 
         handleProtocolRequest(description, write);
+    }
+
+    /**
+     * Check whether the roaming state is activated for this instance.
+     * <p>
+     * When in that state, connections won't be closed by their owners when they go out of scope.
+     * <p>
+     * For instance, a {@link CoolSocket} server will not {@link #close()} an instance after its child thread exits,
+     * allowing to you keep using the connection without having to block that child thread.
+     *
+     * @return True if the roaming is activated.
+     * @see #setRoaming(boolean)
+     */
+    public boolean isRoaming()
+    {
+        return roaming;
+    }
+
+    /**
+     * Change the roaming state of this instance.
+     *
+     * @param roaming True to enable the roaming state.
+     * @see #isRoaming()
+     */
+    public void setRoaming(boolean roaming)
+    {
+        this.roaming = roaming;
     }
 
     /**

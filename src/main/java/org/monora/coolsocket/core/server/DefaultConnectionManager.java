@@ -76,9 +76,11 @@ public class DefaultConnectionManager implements ConnectionManager
             } catch (Exception e) {
                 coolSocket.getLogger().log(Level.SEVERE, "An error occurred during handling of a client", e);
             } finally {
-                try {
-                    activeConnection.close();
-                } catch (IOException ignored) {
+                if (!activeConnection.isRoaming()) {
+                    try {
+                        activeConnection.close();
+                    } catch (IOException ignored) {
+                    }
                 }
 
                 synchronized (connectionList) {

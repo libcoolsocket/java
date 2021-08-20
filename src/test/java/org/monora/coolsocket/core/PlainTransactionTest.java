@@ -6,12 +6,10 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
-import org.monora.coolsocket.core.variant.BlockingCoolSocket;
-import org.monora.coolsocket.core.variant.Connections;
-import org.monora.coolsocket.core.variant.DefaultCoolSocket;
-import org.monora.coolsocket.core.variant.StaticMessageCoolSocket;
+import org.monora.coolsocket.core.variant.*;
 
 import java.io.IOException;
+import java.net.SocketException;
 
 public class PlainTransactionTest
 {
@@ -165,6 +163,71 @@ public class PlainTransactionTest
                     activeConnection.receive().getAsString(charsetName));
             Assert.assertEquals("The messages should match.", jsonObject.toString(),
                     activeConnection.receive().getAsJson(charsetName).toString());
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void roamingChildTest() throws IOException, InterruptedException
+    {
+        final String message = "Hello, World!";
+
+        RoamingChildCoolSocket coolSocket = new RoamingChildCoolSocket(true);
+        Thread thread = new Thread(() -> {
+            try {
+                ActiveConnection activeConnection = coolSocket.connectionsQueue.take();
+                CoolSocket.Session session = coolSocket.getSession();
+
+                Assert.assertNotNull("Session should not be null", session);
+
+                while (true) {
+                    if (session.getConnectionManager().getActiveConnectionList().size() < 1) break;
+                }
+
+                activeConnection.reply(message);
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+            }
+        });
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            thread.start();
+            Assert.assertEquals("The messages should match", message, activeConnection.receive().getAsString());
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test(expected = SocketException.class, timeout = 10000)
+    public void nonRoamingChildClosesTest() throws IOException, InterruptedException
+    {
+        final String message = "Foo";
+
+        RoamingChildCoolSocket coolSocket = new RoamingChildCoolSocket(false);
+        Thread thread = new Thread(() -> {
+            try {
+                ActiveConnection activeConnection = coolSocket.connectionsQueue.take();
+                CoolSocket.Session session = coolSocket.getSession();
+
+                Assert.assertNotNull("Session should not be null", session);
+
+                while (true) {
+                    if (session.getConnectionManager().getActiveConnectionList().size() < 1) break;
+                }
+
+                activeConnection.reply(message);
+            } catch (InterruptedException | IOException ignored) {
+            }
+        });
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            thread.start();
+            Assert.assertEquals("The messages should match", message, activeConnection.receive().getAsString());
         } finally {
             coolSocket.stop();
         }
