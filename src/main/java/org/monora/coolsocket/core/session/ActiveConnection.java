@@ -17,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.logging.Logger;
 
 import static org.monora.coolsocket.core.config.Config.*;
 
@@ -257,7 +258,7 @@ public class ActiveConnection implements Closeable
         super.finalize();
 
         if (!getSocket().isClosed()) {
-            System.out.println("Connections should be closed before their references are being destroyed");
+            Logger.getAnonymousLogger().info("Connections should be closed before they are destroyed");
             getSocket().close();
         }
     }

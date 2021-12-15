@@ -41,17 +41,20 @@ public enum ProtocolRequest
      */
     Cancel(9),
 
-    /*
+    /**
      * Do an information exchange.
      */
     InfoExchange(8);
 
+    /**
+     * The priority that sets the importance of execution.
+     */
     public final int priority;
 
     /**
      * Create new instance.
      *
-     * @param priority The priority that set the importance of execution.
+     * @param priority That sets the importance of execution.
      */
     ProtocolRequest(int priority)
     {

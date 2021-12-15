@@ -34,7 +34,7 @@ public class CoolSocket implements ClientHandler
      */
     public static final int LENGTH_UNSPECIFIED = -1;
 
-    private final @NotNull Logger logger = Logger.getLogger(toString());
+    private final @NotNull Logger logger = Logger.getLogger("CoolSocket");
 
     private final @NotNull ConfigFactory configFactory;
 

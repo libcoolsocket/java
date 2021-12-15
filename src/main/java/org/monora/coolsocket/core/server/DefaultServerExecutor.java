@@ -23,7 +23,7 @@ public class DefaultServerExecutor implements ServerExecutor
                 ActiveConnection activeConnection = configFactory.configureClient(clientSocket);
                 connectionManager.handleClient(coolSocket, activeConnection);
             } catch (SocketException e) {
-                coolSocket.getLogger().info("Server socket exited.");
+                coolSocket.getLogger().fine("Server socket exited.");
             } catch (SocketTimeoutException ignored) {
             } catch (Exception e) {
                 coolSocket.getLogger().log(Level.SEVERE, "Caught a severe error.", e);

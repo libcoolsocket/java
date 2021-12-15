@@ -20,6 +20,7 @@ import java.net.SocketException;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
+import java.util.logging.Logger;
 
 public class DataTransactionTest
 {
@@ -445,7 +446,7 @@ public class DataTransactionTest
             do {
                 activeConnection.read(description);
             } while (description.hasAvailable());
-            System.out.println("It took: " + ((System.nanoTime() - startTime) / 1e9));
+            Logger.getAnonymousLogger().fine("It took: " + ((System.nanoTime() - startTime) / 1e9));
         } finally {
             coolSocket.stop();
         }
