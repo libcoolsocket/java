@@ -246,24 +246,6 @@ public class ActiveConnection implements Closeable
     }
 
     /**
-     * This ensures the connection is closed before this instance of the class is destroyed.
-     *
-     * @throws Throwable Override to use this feature.
-     * @deprecated By the parent
-     */
-    @Override
-    @Deprecated
-    protected void finalize() throws Throwable
-    {
-        super.finalize();
-
-        if (!getSocket().isClosed()) {
-            Logger.getAnonymousLogger().info("Connections should be closed before they are destroyed");
-            getSocket().close();
-        }
-    }
-
-    /**
      * @return The address that the socket is bound to.
      */
     public @NotNull InetAddress getAddress()
