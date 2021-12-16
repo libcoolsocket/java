@@ -426,7 +426,7 @@ public class CoolSocket implements ClientHandler
          *
          * @return The connection manager instance.
          */
-        protected @NotNull ConnectionManager getConnectionManager()
+        public @NotNull ConnectionManager getConnectionManager()
         {
             return connectionManager;
         }
