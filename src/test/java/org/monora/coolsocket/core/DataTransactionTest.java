@@ -515,4 +515,30 @@ public class DataTransactionTest
             coolSocket.stop();
         }
     }
+
+    @Test
+    public void exchangesProtocolVersions() throws IOException, InterruptedException {
+        final CoolSocket coolSocket = new DefaultCoolSocket() {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection) {
+                try {
+                    activeConnection.reply("Hello");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.receive();
+            Assert.assertTrue("The protocol version should be bigger than 0",
+                    activeConnection.getProtocolVersionOfRemote() > 0);
+            Assert.assertEquals("The protocol versions should match", Config.PROTOCOL_VERSION,
+                    activeConnection.getProtocolVersionOfRemote());
+        } finally {
+            coolSocket.stop();
+        }
+    }
 }
