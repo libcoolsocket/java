@@ -17,7 +17,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
-import java.util.logging.Logger;
 
 import static org.monora.coolsocket.core.config.Config.*;
 
@@ -42,6 +41,8 @@ public class ActiveConnection implements Closeable
     private boolean cancelled;
 
     private boolean closeRequested;
+
+    private boolean multichannel = false;
 
     private boolean roaming = false;
 
@@ -353,7 +354,7 @@ public class ActiveConnection implements Closeable
                 protocolRequest = ProtocolRequest.Close;
             else if (cancelled())
                 protocolRequest = ProtocolRequest.Cancel;
-            else if (protocolVersion == 0) {
+            else if (protocolVersion == 0 && !multichannel) {
                 protocolRequest = ProtocolRequest.InfoExchange;
                 exchange = InfoExchange.ProtocolVersion;
             } else
@@ -395,6 +396,37 @@ public class ActiveConnection implements Closeable
         }
 
         handleProtocolRequest(description, write);
+    }
+
+    /**
+     * Check whether the multichannel mode is enabled.
+     * <p>
+     * In this mode, the write and read streams are separated allowing asynchronous data transaction to be possible.
+     * <p>
+     * When enabled, the inverse exchange point is not handled, only the readers is able {@link #readState(Description)},
+     * and only writers is able to {@link #writeState(Description)}. That way two write and read channels can be used
+     * independently of each other.
+     *
+     * @return True if the multichannel mode is enabled.
+     * @see #setMultichannel(boolean)
+     */
+    public boolean isMultichannel()
+    {
+        return multichannel;
+    }
+
+    /**
+     * Enable/disable the multichannel mode.
+     * <p>
+     * Changing the mode does not send a signal to the remote host, and both side has to enable/disable it at the same
+     * time.
+     *
+     * @param multichannel True to enable the multichannel mode.
+     * @see #isMultichannel()
+     */
+    public void setMultichannel(boolean multichannel)
+    {
+        this.multichannel = multichannel;
     }
 
     /**
@@ -440,11 +472,12 @@ public class ActiveConnection implements Closeable
         boolean chunked = description.flags.chunked();
 
         if (description.nextAvailable <= 0) {
-            if (description.transactionCount++ == description.inverseExchangePoint) {
+            if (!multichannel && description.transactionCount++ == description.inverseExchangePoint) {
                 writeState(description);
                 description.transactionCount = 0;
-            } else
+            } else {
                 readState(description);
+            }
             readOrFail(description.byteBuffer, Long.BYTES);
             description.nextAvailable = description.byteBuffer.getLong();
 
@@ -510,8 +543,12 @@ public class ActiveConnection implements Closeable
     {
         ByteBuffer byteBuffer = ByteBuffer.wrap(buffer);
 
-        byteBuffer.putInt(inverseExchangePoint).flip();
-        getWritableByteChannel().write(byteBuffer);
+        if (multichannel) {
+            inverseExchangePoint = DEFAULT_INVERSE_EXCHANGE_POINT;
+        } else {
+            byteBuffer.putInt(inverseExchangePoint).flip();
+            getWritableByteChannel().write(byteBuffer);
+        }
 
         readOrFail(byteBuffer, Long.BYTES * 2 + Integer.BYTES);
 
@@ -521,7 +558,7 @@ public class ActiveConnection implements Closeable
         nextOperationId = description.operationId;
 
         readState(description);
-        writeState(description);
+        if (!multichannel) writeState(description);
 
         return description;
     }
@@ -847,7 +884,7 @@ public class ActiveConnection implements Closeable
                     description.available(), consume);
         }
 
-        if (description.transactionCount++ == description.inverseExchangePoint) {
+        if (!multichannel && description.transactionCount++ == description.inverseExchangePoint) {
             readState(description);
             description.transactionCount = 0;
         } else
@@ -915,9 +952,15 @@ public class ActiveConnection implements Closeable
         ByteBuffer byteBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
         int operationId = ++nextOperationId;
 
-        readOrFail(byteBuffer, Integer.BYTES);
-        int inverseExchangePoint = byteBuffer.getInt();
-        byteBuffer.clear();
+        int inverseExchangePoint;
+
+        if (multichannel) {
+            inverseExchangePoint = DEFAULT_INVERSE_EXCHANGE_POINT;
+        } else {
+            readOrFail(byteBuffer, Integer.BYTES);
+            inverseExchangePoint = byteBuffer.getInt();
+            byteBuffer.clear();
+        }
 
         Description description = new Description(flags, operationId, totalLength, inverseExchangePoint, byteBuffer);
         byteBuffer.putLong(flags)
@@ -929,7 +972,7 @@ public class ActiveConnection implements Closeable
         byteBuffer.clear();
 
         writeState(description);
-        readState(description);
+        if (!multichannel) readState(description);
 
         return description;
     }

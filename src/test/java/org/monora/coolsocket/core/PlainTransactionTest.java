@@ -6,6 +6,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.variant.*;
 
 import java.io.IOException;
@@ -228,6 +229,39 @@ public class PlainTransactionTest
         try (ActiveConnection activeConnection = Connections.connect()) {
             thread.start();
             Assert.assertEquals("The messages should match", message, activeConnection.receive().getAsString());
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void handlesDisorderlyTransactionsWhenMultichannelEnabled() throws IOException, InterruptedException
+    {
+        String message = "Hello, World!";
+        CoolSocket coolSocket = new DefaultCoolSocket()
+        {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection)
+            {
+                activeConnection.setMultichannel(true);
+                try {
+                    // Put the read and write in the same order on both the reader and the sender.
+                    activeConnection.reply(message);
+                    activeConnection.receive();
+                } catch (IOException ignored) {
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.setMultichannel(true);
+
+            activeConnection.reply(message);
+            Response response = activeConnection.receive();
+
+            Assert.assertEquals("The message should match after the disorderly transaction", message, response.getAsString());
         } finally {
             coolSocket.stop();
         }

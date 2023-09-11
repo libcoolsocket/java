@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.monora.coolsocket.core.config.Config;
+import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
 import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
@@ -306,6 +307,61 @@ public class CommandExecutionTest
             }
 
             activeConnection.writeEnd(description);
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void readerCancellingIgnoredWhenMultichannelEnabled() throws InterruptedException, IOException
+    {
+        CoolSocket coolSocket = new DefaultCoolSocket()
+        {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection)
+            {
+                activeConnection.setMultichannel(true);
+                try {
+                    activeConnection.cancel();
+                    activeConnection.receive();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.setMultichannel(true);
+            activeConnection.reply("hello");
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test(expected = CancelledException.class)
+    public void throwsAfterSenderCancelsWhenMultichannelEnabled() throws InterruptedException, IOException
+    {
+        CoolSocket coolSocket = new DefaultCoolSocket()
+        {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection)
+            {
+                activeConnection.setMultichannel(true);
+                try {
+                    activeConnection.receive();
+                } catch (IOException ignored) {
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.cancel();
+            activeConnection.setMultichannel(true);
+            activeConnection.reply("hello");
         } finally {
             coolSocket.stop();
         }
