@@ -1,16 +1,19 @@
 package org.monora.coolsocket.core;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
 import org.monora.coolsocket.core.response.Response;
 import org.monora.coolsocket.core.session.ActiveConnection;
-import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.variant.*;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
@@ -375,6 +378,95 @@ public class PlainTransactionTest
             try {
                 messageReceiverThread.start();
                 for (String message : messages) {
+                    activeConnection.reply(message);
+                }
+                messageReceiverThread.join();
+            } finally {
+                activeConnection.setMultichannel(false);
+            }
+
+            Assert.assertArrayEquals("Messages should match", messages.toArray(), receivedMessages.toArray());
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void handlesMultithreadedMultichannelUnorderedCommunication() throws IOException, InterruptedException
+    {
+        List<String> messages = new ArrayList<String>()
+        {{
+            add("hello");
+            add("world");
+            add("fuzz");
+            add("buzz");
+            add("quit");
+        }};
+        String lastMessage = messages.get(messages.size() - 1);
+
+        CoolSocket coolSocket = new DefaultCoolSocket()
+        {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection)
+            {
+                try {
+                    activeConnection.getSocket().setSoTimeout(0);
+                } catch (SocketException ignored) {
+                }
+
+
+                Thread messageReceiverThread = new Thread(() -> {
+                    try {
+                        String message;
+                        do {
+                            message = activeConnection.receive().getAsString();
+                            Thread.sleep(15);
+                        } while (!lastMessage.equals(message));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                activeConnection.setMultichannel(true);
+                try {
+                    messageReceiverThread.start();
+                    for (String message : messages) {
+                        Thread.sleep(5);
+                        activeConnection.reply(message);
+                    }
+                    messageReceiverThread.join();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    activeConnection.setMultichannel(false);
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.getSocket().setSoTimeout(0);
+
+            List<String> receivedMessages = new ArrayList<>();
+            Thread messageReceiverThread = new Thread(() -> {
+                try {
+                    String message;
+                    do {
+                        Thread.sleep(5);
+                        message = activeConnection.receive().getAsString();
+                        receivedMessages.add(message);
+                    } while (!lastMessage.equals(message));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
+            activeConnection.setMultichannel(true);
+            try {
+                messageReceiverThread.start();
+                for (String message : messages) {
+                    Thread.sleep(10);
                     activeConnection.reply(message);
                 }
                 messageReceiverThread.join();
