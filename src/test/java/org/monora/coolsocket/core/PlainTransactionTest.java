@@ -1,6 +1,7 @@
 package org.monora.coolsocket.core;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,6 +12,8 @@ import org.monora.coolsocket.core.variant.*;
 
 import java.io.IOException;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PlainTransactionTest
 {
@@ -262,6 +265,124 @@ public class PlainTransactionTest
             Response response = activeConnection.receive();
 
             Assert.assertEquals("The message should match after the disorderly transaction", message, response.getAsString());
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void handlesMultichannelTransaction() throws IOException, InterruptedException
+    {
+        String message1 = "Hello, World!";
+        String message2 = "FooBar";
+        String message3 = "FuzzBuzz";
+        CoolSocket coolSocket = new DefaultCoolSocket()
+        {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection)
+            {
+                activeConnection.setMultichannel(true);
+                try {
+                    // Put the read and write in the same order on both the reader and the sender.
+                    activeConnection.reply(message1);
+                    activeConnection.reply(message2);
+                    activeConnection.reply(message3);
+                    activeConnection.receive();
+                } catch (IOException ignored) {
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            activeConnection.setMultichannel(true);
+
+            activeConnection.reply(message1);
+            String receivedMessage1 = activeConnection.receive().getAsString();
+            String receivedMessage2 = activeConnection.receive().getAsString();
+            String receivedMessage3 = activeConnection.receive().getAsString();
+
+            Assert.assertEquals("The first message should match after the disorderly transaction", message1, receivedMessage1);
+            Assert.assertEquals("The second message should match after the disorderly transaction", message2, receivedMessage2);
+            Assert.assertEquals("The third message should match after the disorderly transaction", message3, receivedMessage3);
+        } finally {
+            coolSocket.stop();
+        }
+    }
+
+    @Test
+    public void handlesMultithreadedMultichannelCommunication() throws IOException, InterruptedException
+    {
+        List<String> messages = new ArrayList<String>()
+        {{
+            add("hello");
+            add("world");
+            add("fuzz");
+            add("buzz");
+            add("quit");
+        }};
+        String lastMessage = messages.get(messages.size() - 1);
+
+        CoolSocket coolSocket = new DefaultCoolSocket()
+        {
+            @Override
+            public void onConnected(@NotNull ActiveConnection activeConnection)
+            {
+                Thread messageReceiverThread = new Thread(() -> {
+                    try {
+                        String message;
+                        do {
+                            message = activeConnection.receive().getAsString();
+                        } while (!lastMessage.equals(message));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                activeConnection.setMultichannel(true);
+                try {
+                    messageReceiverThread.start();
+                    for (String message : messages) {
+                        activeConnection.reply(message);
+                    }
+                    messageReceiverThread.join();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    activeConnection.setMultichannel(false);
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (ActiveConnection activeConnection = Connections.connect()) {
+            List<String> receivedMessages = new ArrayList<>();
+            Thread messageReceiverThread = new Thread(() -> {
+                try {
+                    String message;
+                    do {
+                        message = activeConnection.receive().getAsString();
+                        receivedMessages.add(message);
+                    } while (!lastMessage.equals(message));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
+            activeConnection.setMultichannel(true);
+            try {
+                messageReceiverThread.start();
+                for (String message : messages) {
+                    activeConnection.reply(message);
+                }
+                messageReceiverThread.join();
+            } finally {
+                activeConnection.setMultichannel(false);
+            }
+
+            Assert.assertArrayEquals("Messages should match", messages.toArray(), receivedMessages.toArray());
         } finally {
             coolSocket.stop();
         }
