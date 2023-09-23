@@ -660,7 +660,7 @@ public class ActiveConnection implements Closeable
      * @see #writeEnd(Description)
      * @see #write(Description, InputStream)
      */
-    public synchronized @NotNull Response receive(@NotNull OutputStream outputStream, int maxLength) throws IOException
+    public @NotNull Response receive(@NotNull OutputStream outputStream, int maxLength) throws IOException
     {
         int len;
         Description description = readBegin();
@@ -869,7 +869,7 @@ public class ActiveConnection implements Closeable
      * @see #write(Description, InputStream)
      * @see #writeEnd(Description)
      */
-    public synchronized void write(@NotNull Description description, byte @NotNull [] bytes, int offset, int length)
+    public void write(@NotNull Description description, byte @NotNull [] bytes, int offset, int length)
             throws IOException
     {
         verifyDescription(description);
@@ -909,7 +909,7 @@ public class ActiveConnection implements Closeable
      * @param inputStream To read from.
      * @throws IOException If an IO error occurs, or {@link CancelledException} if the operation is cancelled.
      */
-    public synchronized void write(@NotNull Description description, @NotNull InputStream inputStream) throws IOException
+    public void write(@NotNull Description description, @NotNull InputStream inputStream) throws IOException
     {
         int len;
         byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
@@ -928,7 +928,7 @@ public class ActiveConnection implements Closeable
      * @throws IOException When socket related IO error occurs.
      * @see #writeBegin(long, long)
      */
-    public synchronized @NotNull Description writeBegin(long flags) throws IOException
+    public @NotNull Description writeBegin(long flags) throws IOException
     {
         return writeBegin(flags | Flags.FLAG_DATA_CHUNKED, 0);
     }
@@ -947,7 +947,7 @@ public class ActiveConnection implements Closeable
      * @return The description object for this write operation.
      * @throws IOException When socket related IO error occurs.
      */
-    public synchronized @NotNull Description writeBegin(long flags, long totalLength) throws IOException
+    public @NotNull Description writeBegin(long flags, long totalLength) throws IOException
     {
         ByteBuffer byteBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
         int operationId = ++nextOperationId;
@@ -985,7 +985,7 @@ public class ActiveConnection implements Closeable
      *                                cancelled.
      * @throws SizeUnderflowException If the operation is not chunked, and there are bytes left.
      */
-    public synchronized void writeEnd(@NotNull Description description) throws IOException
+    public void writeEnd(@NotNull Description description) throws IOException
     {
         if (!description.hasAvailable())
             return;
