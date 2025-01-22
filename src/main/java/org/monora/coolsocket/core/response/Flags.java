@@ -5,10 +5,9 @@ package org.monora.coolsocket.core.response;
  * <p>
  * This class is immutable, and if the modifying the flags is a need, you should create another instance for it.
  */
-public class Flags
-{
+public class Flags {
     /**
-     * Bit order: 0
+     * The bit order: 0
      * <p>
      * Tells that the read is inconclusive and another read is needed. If the data is not chunked, then, the data will
      * be read as many as its length.
@@ -25,8 +24,7 @@ public class Flags
      *
      * @param flags That will be encapsulated.
      */
-    public Flags(long flags)
-    {
+    public Flags(long flags) {
         this.flags = flags;
     }
 
@@ -35,8 +33,7 @@ public class Flags
      *
      * @return True if the data was chunked.
      */
-    public boolean chunked()
-    {
+    public boolean chunked() {
         return (flags & FLAG_DATA_CHUNKED) != 0;
     }
 }

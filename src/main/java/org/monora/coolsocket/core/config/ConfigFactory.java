@@ -1,7 +1,7 @@
 package org.monora.coolsocket.core.config;
 
 import org.jetbrains.annotations.NotNull;
-import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.Channel;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,8 +11,7 @@ import java.net.*;
  * This factory class contract configures the sockets when they are created so that extra management can be passed on
  * to a 3rd party class that doesn't live under the CoolSocket library.
  */
-public interface ConfigFactory
-{
+public interface ConfigFactory {
     /**
      * Configure the server socket for the server side before the usage. Throws whatever the error it faces due to a
      * misconfiguration.
@@ -32,14 +31,14 @@ public interface ConfigFactory
     ServerSocket createServer() throws IOException;
 
     /**
-     * Configure the socket connection to a client before its actual usage and produce an {@link ActiveConnection}
+     * Configure the socket connection to a client before its actual usage and produce an {@link Channel}
      * instance. The configuration may be different from that of {@link ServerSocket#accept()} assigns.
      *
      * @param client To configure.
-     * @return The configured socket encapsulated in a {@link ActiveConnection}.
+     * @return The configured socket encapsulated in a {@link Channel}.
      * @throws SocketException When an unrecoverable error occurs due to misconfiguration.
      */
-    ActiveConnection configureClient(@NotNull Socket client) throws SocketException;
+    Channel configureClient(@NotNull Socket client) throws IOException;
 
     /**
      * The address that the upcoming products will be assigned to. This does not necessarily reflect the address
@@ -55,8 +54,7 @@ public interface ConfigFactory
      *
      * @return The port number assigned by this factory instance.
      */
-    default int getPort()
-    {
+    default int getPort() {
         return getSocketAddress() instanceof InetSocketAddress ? ((InetSocketAddress) getSocketAddress()).getPort() : 0;
     }
 

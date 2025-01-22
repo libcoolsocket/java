@@ -9,7 +9,7 @@ import org.monora.coolsocket.core.client.ClientHandler;
 import org.monora.coolsocket.core.server.ConnectionManager;
 import org.monora.coolsocket.core.server.ConnectionManagerFactory;
 import org.monora.coolsocket.core.server.DefaultConnectionManager;
-import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.Channel;
 import org.monora.coolsocket.core.session.CancelledException;
 import org.monora.coolsocket.core.session.ClosedException;
 import org.monora.coolsocket.core.variant.Connections;
@@ -20,26 +20,22 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketException;
 
-public class ClientManagementTest
-{
+public class ClientManagementTest {
     public static final String MSG = "HEY!";
 
     private final CoolSocket coolSocket = new DefaultCoolSocket();
 
-    void startDelayedShutdown(CoolSocket coolSocket)
-    {
+    void startDelayedShutdown(CoolSocket coolSocket) {
         new Thread(new CloseRunnable(coolSocket)).start();
     }
 
     @Before
-    public void setUp()
-    {
+    public void setUp() {
         coolSocket.setClientHandler(new LoopClientHandler());
     }
 
     @After
-    public void tearApart()
-    {
+    public void tearApart() {
         if (coolSocket.isListening()) {
             try {
                 coolSocket.stop();
@@ -49,63 +45,57 @@ public class ClientManagementTest
     }
 
     @Test(expected = ClosedException.class)
-    public void closingSafelyContractTest() throws IOException, InterruptedException
-    {
+    public void closingSafelyContractTest() throws IOException, InterruptedException {
         coolSocket.setConnectionManagerFactory(new CustomConnectionManagerFactory(true,
                 ConnectionManager.CLOSING_CONTRACT_CLOSE_SAFELY));
         coolSocket.start();
 
         startDelayedShutdown(coolSocket);
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            while (activeConnection.getSocket().isConnected())
-                activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            while (channel.getSocket().isConnected())
+                channel.readAll();
         }
     }
 
     @Test(expected = CancelledException.class)
-    public void cancelContractTest() throws IOException, InterruptedException
-    {
+    public void cancelContractTest() throws IOException, InterruptedException {
         coolSocket.setConnectionManagerFactory(new CustomConnectionManagerFactory(true,
                 ConnectionManager.CLOSING_CONTRACT_CANCEL));
         coolSocket.start();
 
         startDelayedShutdown(coolSocket);
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            while (activeConnection.getSocket().isConnected())
-                activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            while (channel.getSocket().isConnected())
+                channel.readAll();
         }
     }
 
     @Test(expected = SocketException.class)
-    public void closeImmediatelyContractTest() throws IOException, InterruptedException
-    {
+    public void closeImmediatelyContractTest() throws IOException, InterruptedException {
         coolSocket.setConnectionManagerFactory(new CustomConnectionManagerFactory(true,
                 ConnectionManager.CLOSING_CONTRACT_CLOSE_IMMEDIATELY));
         coolSocket.start();
 
         startDelayedShutdown(coolSocket);
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            while (activeConnection.getSocket().isConnected())
-                activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            while (channel.getSocket().isConnected())
+                channel.readAll();
         }
     }
 
     @Test
-    public void countClientConnectionsTest() throws IOException, InterruptedException
-    {
+    public void countClientConnectionsTest() throws IOException, InterruptedException {
         final String message = "Hey!";
 
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
                     while (activeConnection.getSocket().isConnected())
-                        activeConnection.receive();
+                        activeConnection.readAll();
                 } catch (ClosedException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -116,17 +106,17 @@ public class ClientManagementTest
         coolSocket.start();
 
         CoolSocket.Session session = coolSocket.getSession();
-        ActiveConnection[] connections = new ActiveConnection[5];
+        Channel[] connections = new Channel[5];
         InetAddress localhost = InetAddress.getByName(TestConfigFactory.SOCKET_ADDRESS_HOST);
 
         try {
             Assert.assertNotNull(session);
 
             for (int i = 0; i < connections.length; i++) {
-                ActiveConnection activeConnection = Connections.connect();
-                connections[i] = activeConnection;
+                Channel channel = Connections.open();
+                connections[i] = channel;
 
-                activeConnection.reply(message);
+                channel.writeAll(message.getBytes());
             }
 
             Assert.assertEquals("Number of connections should be same.", connections.length,
@@ -135,10 +125,10 @@ public class ClientManagementTest
             Assert.assertEquals("Number of connections should be same.", connections.length,
                     session.getConnectionManager().getConnectionCountByAddress(localhost));
 
-            for (ActiveConnection activeConnection : connections) {
+            for (Channel channel : connections) {
                 try {
-                    activeConnection.closeSafely();
-                    activeConnection.reply(message);
+                    channel.closeMutually();
+                    channel.writeAll(message.getBytes());
                 } catch (ClosedException ignored) {
                 }
             }
@@ -150,34 +140,29 @@ public class ClientManagementTest
                 session.getConnectionManager().getActiveConnectionList().size());
     }
 
-    public static class LoopClientHandler implements ClientHandler
-    {
+    public static class LoopClientHandler implements ClientHandler {
         @Override
-        public void onConnected(@NotNull ActiveConnection activeConnection)
-        {
+        public void onConnected(@NotNull Channel channel) {
             try {
-                while (activeConnection.getSocket().isConnected())
-                    activeConnection.reply(MSG);
+                while (channel.getSocket().isConnected())
+                    channel.writeAll(MSG.getBytes());
             } catch (Exception ignored) {
             }
         }
     }
 
-    public static class CustomConnectionManagerFactory implements ConnectionManagerFactory
-    {
+    public static class CustomConnectionManagerFactory implements ConnectionManagerFactory {
         private final boolean waitForExit;
 
         private final int closingContract;
 
-        public CustomConnectionManagerFactory(boolean wait, int closingContract)
-        {
+        public CustomConnectionManagerFactory(boolean wait, int closingContract) {
             this.waitForExit = wait;
             this.closingContract = closingContract;
         }
 
         @Override
-        public @NotNull ConnectionManager createConnectionManager()
-        {
+        public @NotNull ConnectionManager createConnectionManager() {
             DefaultConnectionManager connectionManager = new DefaultConnectionManager();
             connectionManager.setClosingContract(waitForExit, closingContract);
 
@@ -185,18 +170,15 @@ public class ClientManagementTest
         }
     }
 
-    public static class CloseRunnable implements Runnable
-    {
+    public static class CloseRunnable implements Runnable {
         private final CoolSocket coolSocket;
 
-        public CloseRunnable(CoolSocket coolSocket)
-        {
+        public CloseRunnable(CoolSocket coolSocket) {
             this.coolSocket = coolSocket;
         }
 
         @Override
-        public void run()
-        {
+        public void run() {
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {

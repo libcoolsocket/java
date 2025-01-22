@@ -3,7 +3,7 @@ package org.monora.coolsocket.core.server;
 import org.jetbrains.annotations.NotNull;
 import org.monora.coolsocket.core.CoolSocket;
 import org.monora.coolsocket.core.config.ConfigFactory;
-import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.Channel;
 
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -13,10 +13,9 @@ import java.net.Socket;
  * <p>
  * After it receives a connection request via {@link ServerSocket#accept()}, it will configure the client socket using
  * {@link ConfigFactory#configureClient(Socket)} and let
- * {@link ConnectionManager#handleClient(CoolSocket, ActiveConnection)} handle the rest of the operation.
+ * {@link ConnectionManager#handleClient(CoolSocket, Channel)} handle the rest of the operation.
  */
-public interface ServerExecutor
-{
+public interface ServerExecutor {
     /**
      * Handle a server session by accepting connections and assigning them to executors. The server socket is created
      * outside of the thread to handle startup errors during the start operation.

@@ -3,7 +3,7 @@ package org.monora.coolsocket.core.variant;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.monora.coolsocket.core.CoolSocket;
-import org.monora.coolsocket.core.session.ActiveConnection;
+import org.monora.coolsocket.core.session.Channel;
 import org.monora.coolsocket.core.variant.factory.TestConfigFactory;
 
 import java.io.IOException;
@@ -11,23 +11,20 @@ import java.io.IOException;
 /**
  * This will send a static message that you can easily set via {@link #setStaticMessage(String)}.
  */
-public class StaticMessageCoolSocket extends CoolSocket
-{
+public class StaticMessageCoolSocket extends CoolSocket {
     private @Nullable String message = null;
 
-    public StaticMessageCoolSocket()
-    {
+    public StaticMessageCoolSocket() {
         super(new TestConfigFactory());
     }
 
     @Override
-    public void onConnected(@NotNull ActiveConnection activeConnection)
-    {
+    public void onConnected(@NotNull Channel channel) {
         if (message == null)
             throw new IllegalStateException("The message should not be null");
 
         try {
-            activeConnection.reply(message);
+            channel.writeAll(message.getBytes());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -38,8 +35,7 @@ public class StaticMessageCoolSocket extends CoolSocket
      *
      * @param message To be delivered.
      */
-    public void setStaticMessage(@Nullable String message)
-    {
+    public void setStaticMessage(@Nullable String message) {
         this.message = message;
     }
 }

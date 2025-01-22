@@ -21,8 +21,7 @@ import java.util.logging.Logger;
  * Once started with internal configs, it is not possible change the values (e.g., port, timeout) unless you have access
  * to the config factory instance.
  */
-public class CoolSocket implements ClientHandler
-{
+public class CoolSocket implements ClientHandler {
     /**
      * Disable timeout.
      */
@@ -34,16 +33,34 @@ public class CoolSocket implements ClientHandler
      */
     public static final int LENGTH_UNSPECIFIED = -1;
 
+    /**
+     * The logger.
+     */
     private final @NotNull Logger logger = Logger.getLogger("CoolSocket");
 
+    /**
+     * @see ConfigFactory
+     */
     private final @NotNull ConfigFactory configFactory;
 
+    /**
+     * The factory that produces executors for the server.
+     */
     private @Nullable ServerExecutorFactory serverExecutorFactory;
 
+    /**
+     * The factory that produces connection managers for the server.
+     */
     private @Nullable ConnectionManagerFactory connectionManagerFactory;
 
+    /**
+     * The ongoing session for a running server.
+     */
     private @Nullable Session serverSession;
 
+    /**
+     * The handler that manages new connections.
+     */
     private @Nullable ClientHandler clientHandler;
 
     /**
@@ -51,8 +68,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param port That the server socket will run on. Use "0" to randomly assign to an available port.
      */
-    public CoolSocket(int port)
-    {
+    public CoolSocket(int port) {
         this(new InetSocketAddress(port));
     }
 
@@ -61,8 +77,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param address That the server will be assigned to.
      */
-    public CoolSocket(@NotNull SocketAddress address)
-    {
+    public CoolSocket(@NotNull SocketAddress address) {
         this(new DefaultConfigFactory(address, NO_TIMEOUT, NO_TIMEOUT));
     }
 
@@ -71,8 +86,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param configFactory That will produce ServerSocket, and configure sockets.
      */
-    public CoolSocket(@NotNull ConfigFactory configFactory)
-    {
+    public CoolSocket(@NotNull ConfigFactory configFactory) {
         this.configFactory = configFactory;
     }
 
@@ -82,8 +96,7 @@ public class CoolSocket implements ClientHandler
      * @return The client handler instance which defaults to this CoolSocket instance if empty.
      * @see #setClientHandler(ClientHandler)
      */
-    public @NotNull ClientHandler getClientHandler()
-    {
+    public @NotNull ClientHandler getClientHandler() {
         ClientHandler handler = clientHandler;
         return handler == null ? this : handler;
     }
@@ -93,8 +106,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The config factory instance.
      */
-    protected @NotNull ConfigFactory getConfigFactory()
-    {
+    protected @NotNull ConfigFactory getConfigFactory() {
         return configFactory;
     }
 
@@ -103,8 +115,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The connection manager factory instance which defaults when empty.
      */
-    public @NotNull ConnectionManagerFactory getConnectionManagerFactory()
-    {
+    public @NotNull ConnectionManagerFactory getConnectionManagerFactory() {
         ConnectionManagerFactory factory = connectionManagerFactory;
 
         if (factory == null) {
@@ -122,8 +133,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The port that the server is running on.
      */
-    public int getLocalPort()
-    {
+    public int getLocalPort() {
         Session session = getSession();
         return session == null ? getConfigFactory().getPort() : session.getServerSocket().getLocalPort();
     }
@@ -134,16 +144,14 @@ public class CoolSocket implements ClientHandler
      *
      * @return The session that runs the server process.
      */
-    public @Nullable Session getSession()
-    {
+    public @Nullable Session getSession() {
         return serverSession;
     }
 
     /**
      * @return The server executor factory instance which defaults when there is none.
      */
-    public @NotNull ServerExecutorFactory getServerExecutorFactory()
-    {
+    public @NotNull ServerExecutorFactory getServerExecutorFactory() {
         ServerExecutorFactory factory = serverExecutorFactory;
         if (factory == null) {
             factory = new DefaultServerExecutorFactory();
@@ -158,8 +166,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return True when there is a session and hasn't exited.
      */
-    public boolean inSession()
-    {
+    public boolean inSession() {
         return serverSession != null;
     }
 
@@ -168,8 +175,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return True if the server is listening, or false if otherwise.
      */
-    public boolean isListening()
-    {
+    public boolean isListening() {
         Session session = getSession();
         return session != null && session.isListening();
     }
@@ -179,8 +185,7 @@ public class CoolSocket implements ClientHandler
      *
      * @return The logger instance.
      */
-    public @NotNull Logger getLogger()
-    {
+    public @NotNull Logger getLogger() {
         return logger;
     }
 
@@ -195,8 +200,7 @@ public class CoolSocket implements ClientHandler
      * @see #stop()
      * @see #stop(long)
      */
-    public void restart(int timeout) throws IOException, InterruptedException
-    {
+    public void restart(int timeout) throws IOException, InterruptedException {
         if (timeout < 0)
             throw new IllegalStateException("Can't supply timeout as zero");
 
@@ -212,8 +216,7 @@ public class CoolSocket implements ClientHandler
      * @see #start()
      * @see #start(long)
      */
-    public @NotNull Session startAsynchronously() throws IOException
-    {
+    public @NotNull Session startAsynchronously() throws IOException {
         if (isListening())
             throw new IllegalStateException("The server is already running.");
 
@@ -235,8 +238,7 @@ public class CoolSocket implements ClientHandler
      * @param clientHandler The client handler to set.
      * @see #getClientHandler()
      */
-    public void setClientHandler(@Nullable ClientHandler clientHandler)
-    {
+    public void setClientHandler(@Nullable ClientHandler clientHandler) {
         this.clientHandler = clientHandler;
     }
 
@@ -246,8 +248,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param connectionManagerFactory The connection manager factory, or null to set to default.
      */
-    public void setConnectionManagerFactory(@Nullable ConnectionManagerFactory connectionManagerFactory)
-    {
+    public void setConnectionManagerFactory(@Nullable ConnectionManagerFactory connectionManagerFactory) {
         this.connectionManagerFactory = connectionManagerFactory;
     }
 
@@ -257,8 +258,7 @@ public class CoolSocket implements ClientHandler
      *
      * @param serverExecutorFactory The factory class, or null to set to default.
      */
-    public void setServerExecutorFactory(@Nullable ServerExecutorFactory serverExecutorFactory)
-    {
+    public void setServerExecutorFactory(@Nullable ServerExecutorFactory serverExecutorFactory) {
         this.serverExecutorFactory = serverExecutorFactory;
     }
 
@@ -274,8 +274,7 @@ public class CoolSocket implements ClientHandler
      * @see #start(long)
      * @see #startAsynchronously()
      */
-    public void start() throws IOException, InterruptedException
-    {
+    public void start() throws IOException, InterruptedException {
         start(0);
     }
 
@@ -290,8 +289,7 @@ public class CoolSocket implements ClientHandler
      * @see #start()
      * @see #startAsynchronously()
      */
-    public void start(long timeout) throws IOException, InterruptedException
-    {
+    public void start(long timeout) throws IOException, InterruptedException {
         Session session = startAsynchronously();
 
         if (!session.isListening())
@@ -310,8 +308,7 @@ public class CoolSocket implements ClientHandler
      * @see #stop()
      * @see #stop(long)
      */
-    public @Nullable Session stopAsynchronously()
-    {
+    public @Nullable Session stopAsynchronously() {
         Session session = getSession();
 
         if (session == null || !session.isListening()) {
@@ -338,8 +335,7 @@ public class CoolSocket implements ClientHandler
      * @see #stop(long)
      * @see #stopAsynchronously()
      */
-    public void stop() throws InterruptedException
-    {
+    public void stop() throws InterruptedException {
         try {
             stop(0);
         } catch (IOException ignored) {
@@ -361,8 +357,7 @@ public class CoolSocket implements ClientHandler
      * @see #stop()
      * @see #stopAsynchronously()
      */
-    public void stop(long timeout) throws InterruptedException, IOException
-    {
+    public void stop(long timeout) throws InterruptedException, IOException {
         Session session = stopAsynchronously();
 
         if (session != null && session.isListening()) {
@@ -377,16 +372,30 @@ public class CoolSocket implements ClientHandler
     /**
      * The class that holds the server related data for an active session.
      */
-    public class Session extends Thread
-    {
+    public class Session extends Thread {
+        /**
+         * The connection manager for this session.
+         */
         private final @NotNull ConnectionManager connectionManager;
 
+        /**
+         * The server socket.
+         */
         private final @NotNull ServerSocket serverSocket;
 
+        /**
+         * The executor for the server thread.
+         */
         private final @NotNull ServerExecutor serverExecutor;
 
+        /**
+         * The lock used for synchronizing between changes..
+         */
         private final @NotNull Object stateLock = new Object();
 
+        /**
+         * Whether the server is currently listening.
+         */
         private boolean listening;
 
         /**
@@ -399,8 +408,7 @@ public class CoolSocket implements ClientHandler
          * @param serverExecutor    Runs the server with the given data objects in this instance of session.
          */
         public Session(@NotNull ConnectionManager connectionManager, @NotNull ServerSocket serverSocket,
-                       @NotNull ServerExecutor serverExecutor)
-        {
+                       @NotNull ServerExecutor serverExecutor) {
             super("CoolSocket Server Session");
 
             this.connectionManager = connectionManager;
@@ -408,8 +416,10 @@ public class CoolSocket implements ClientHandler
             this.serverExecutor = serverExecutor;
         }
 
-        private void closeServerSocket()
-        {
+        /**
+         * Safely close the server socket.
+         */
+        private void closeServerSocket() {
             if (serverSocket.isClosed())
                 return;
 
@@ -426,24 +436,21 @@ public class CoolSocket implements ClientHandler
          *
          * @return The connection manager instance.
          */
-        public @NotNull ConnectionManager getConnectionManager()
-        {
+        public @NotNull ConnectionManager getConnectionManager() {
             return connectionManager;
         }
 
         /**
          * @return The server executor for this session.
          */
-        public @NotNull ServerExecutor getServerExecutor()
-        {
+        public @NotNull ServerExecutor getServerExecutor() {
             return serverExecutor;
         }
 
         /**
          * @return The server socket that accepts the connections.
          */
-        public @NotNull ServerSocket getServerSocket()
-        {
+        public @NotNull ServerSocket getServerSocket() {
             return serverSocket;
         }
 
@@ -452,22 +459,19 @@ public class CoolSocket implements ClientHandler
          *
          * @return True if it is listening.
          */
-        public boolean isListening()
-        {
+        public boolean isListening() {
             return listening;
         }
 
         @Override
-        public void interrupt()
-        {
+        public void interrupt() {
             super.interrupt();
             getConnectionManager().closeAll();
             closeServerSocket();
         }
 
         @Override
-        public void run()
-        {
+        public void run() {
             if (Thread.currentThread() != this)
                 throw new IllegalStateException("A session is its own thread and should not be run as a runnable.");
 
@@ -494,8 +498,7 @@ public class CoolSocket implements ClientHandler
         }
 
         @Override
-        public synchronized void start()
-        {
+        public synchronized void start() {
             super.start();
             CoolSocket.this.serverSession = this;
         }
@@ -507,8 +510,7 @@ public class CoolSocket implements ClientHandler
          *
          * @throws InterruptedException If the calling thread goes into the interrupted state.
          */
-        public void waitUntilStateChange() throws InterruptedException
-        {
+        public void waitUntilStateChange() throws InterruptedException {
             waitUntilStateChange(0);
         }
 
@@ -518,8 +520,7 @@ public class CoolSocket implements ClientHandler
          * @param ms Time to wait before the changes. Pass 0 to wait indefinitely until the state changes.
          * @throws InterruptedException If the calling thread goes into interrupted state.
          */
-        public void waitUntilStateChange(long ms) throws InterruptedException
-        {
+        public void waitUntilStateChange(long ms) throws InterruptedException {
             synchronized (stateLock) {
                 if (ms == 0)
                     stateLock.wait();

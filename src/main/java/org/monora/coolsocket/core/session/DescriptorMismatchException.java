@@ -2,28 +2,28 @@ package org.monora.coolsocket.core.session;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.monora.coolsocket.core.session.ActiveConnection.Description;
 
 /**
- * Thrown when wrong {@link Description} is used to read from or write to the remote.
+ * Thrown when wrong {@link Channel.Descriptor} is used to read from or write to the remote.
  * <p>
  * In short, if the remote operation identity is different from ours.
  */
-public class DescriptionMismatchException extends DescriptionException
-{
+public class DescriptorMismatchException extends DescriptorException {
+    /**
+     * The unique id of the descriptor.
+     */
     public final int remoteDescriptionId;
 
     /**
      * Create a new instance where the description of the issue is provided.
      *
      * @param msg                 The message explaining this error.
-     * @param description         The description object that was led to this error.
+     * @param descriptor          The description object that was led to this error.
      * @param remoteDescriptionId The description identity number reported by remote.
      */
-    public DescriptionMismatchException(@Nullable String msg, @NotNull Description description,
-                                        int remoteDescriptionId)
-    {
-        super(msg, description);
+    public DescriptorMismatchException(@Nullable String msg, @NotNull Channel.Descriptor descriptor,
+                                       int remoteDescriptionId) {
+        super(msg, descriptor);
         this.remoteDescriptionId = remoteDescriptionId;
     }
 }

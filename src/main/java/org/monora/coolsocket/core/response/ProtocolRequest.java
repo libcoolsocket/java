@@ -21,8 +21,7 @@ import org.jetbrains.annotations.NotNull;
  * If remote replies with another type of protocol request it will mean the remote has prioritized that protocol
  * request, it should be executed over what is sent by you.
  */
-public enum ProtocolRequest
-{
+public enum ProtocolRequest {
     /**
      * Ineffective protocol request.
      */
@@ -56,8 +55,7 @@ public enum ProtocolRequest
      *
      * @param priority That sets the importance of execution.
      */
-    ProtocolRequest(int priority)
-    {
+    ProtocolRequest(int priority) {
         this.priority = priority;
     }
 
@@ -67,8 +65,7 @@ public enum ProtocolRequest
      * @param ordinal For the expected protocol request object.
      * @return The found protocol request object, or the default {@link ProtocolRequest#None}.
      */
-    public static @NotNull ProtocolRequest from(int ordinal)
-    {
+    public static @NotNull ProtocolRequest from(int ordinal) {
         ProtocolRequest[] values = values();
         if (ordinal < 0 || ordinal >= values.length)
             return None;

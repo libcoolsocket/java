@@ -7,8 +7,8 @@ import org.monora.coolsocket.core.config.Config;
 import org.monora.coolsocket.core.response.SizeMismatchException;
 import org.monora.coolsocket.core.response.SizeOverflowException;
 import org.monora.coolsocket.core.response.SizeUnderflowException;
-import org.monora.coolsocket.core.session.ActiveConnection;
-import org.monora.coolsocket.core.session.DescriptionClosedException;
+import org.monora.coolsocket.core.session.Channel;
+import org.monora.coolsocket.core.session.DescriptorClosedException;
 import org.monora.coolsocket.core.variant.Connections;
 import org.monora.coolsocket.core.variant.DefaultCoolSocket;
 
@@ -22,30 +22,26 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.logging.Logger;
 
-public class DataTransactionTest
-{
+public class DataTransactionTest {
     @Test(timeout = 3000)
-    public void readWritesToAnyOutputTest() throws IOException, InterruptedException
-    {
+    public void readWritesToAnyOutputTest() throws IOException, InterruptedException {
         final String message = "The quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\n";
 
         final InputStream inputStream = new ByteArrayInputStream(message.getBytes());
 
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    activeConnection.write(description, inputStream);
-                    activeConnection.writeEnd(description);
+                    Channel.WritableDescriptor descriptor = channel.writeBegin(0);
+                    descriptor.write(inputStream);
+                    descriptor.writeEnd();
 
                     // do the above with shortcuts
                     inputStream.reset();
-                    activeConnection.reply(0, inputStream);
+                    channel.writeAll(inputStream);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -54,35 +50,32 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.readBegin();
+        try (Channel channel = Connections.open()) {
+            Channel.ReadableDescriptor descriptor = channel.readBegin();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
 
-            while (activeConnection.read(description) != -1)
-                writableByteChannel.write(description.byteBuffer);
+            while (descriptor.read() != -1)
+                writableByteChannel.write(descriptor.byteBuffer);
 
             Assert.assertEquals("The messages should match.", message, outputStream.toString());
 
             // do the above with shortcuts
-            Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
+            Assert.assertEquals("The messages should match.", message, channel.readAll().getAsString());
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test(expected = SizeMismatchException.class)
-    public void exceedingInternalCacheGivesError() throws IOException, InterruptedException
-    {
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+    public void exceedingInternalCacheGivesError() throws IOException, InterruptedException {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    activeConnection.write(description, new byte[8192]);
-                    activeConnection.writeEnd(description);
+                    Channel.WritableDescriptor descriptor = channel.writeBegin(0);
+                    descriptor.write(new byte[8192]);
+                    descriptor.writeEnd();
                 } catch (IOException ignored) {
 
                 }
@@ -91,28 +84,25 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            activeConnection.setInternalCacheSize(100);
-            activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            channel.setDefaultBufferSize(100);
+            channel.readAll();
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test
-    public void internalCacheLimitTest() throws InterruptedException, IOException
-    {
+    public void internalCacheLimitTest() throws InterruptedException, IOException {
         final int size = 8192;
 
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0);
-                    activeConnection.write(description, new byte[size]);
-                    activeConnection.writeEnd(description);
+                    Channel.WritableDescriptor descriptor = activeConnection.writeBegin(0);
+                    descriptor.write(new byte[size]);
+                    descriptor.writeEnd();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -121,17 +111,16 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            activeConnection.setInternalCacheSize(size);
-            activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            channel.setDefaultBufferSize(size);
+            channel.readAll();
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test
-    public void writesFixedDataTest() throws IOException, InterruptedException
-    {
+    public void writesFixedDataTest() throws IOException, InterruptedException {
         final String message = "The quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\n";
@@ -139,13 +128,11 @@ public class DataTransactionTest
         final byte[] messageBytes = message.getBytes();
         final InputStream inputStream = new ByteArrayInputStream(messageBytes);
 
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    activeConnection.reply(0, inputStream, messageBytes.length);
+                    activeConnection.writeAll(inputStream, messageBytes.length);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -154,31 +141,28 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            Assert.assertEquals("The messages should match.", message, activeConnection.receive().getAsString());
+        try (Channel channel = Connections.open()) {
+            Assert.assertEquals("The messages should match.", message, channel.readAll().getAsString());
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test
-    public void consumedInputStreamSendsZeroBytesTest() throws IOException, InterruptedException
-    {
+    public void consumedInputStreamSendsZeroBytesTest() throws IOException, InterruptedException {
         final String message = "The quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\nThe quick brown fox jumped over " +
                 "the lazy dog!\nThe quick brown fox jumped over the lazy dog!\n";
         final byte[] messageBytes = message.getBytes();
         final InputStream inputStream = new ByteArrayInputStream(messageBytes);
 
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
                     if (inputStream.skip(messageBytes.length) != messageBytes.length)
                         throw new IOException("It did not skip bytes");
-                    activeConnection.reply(0, inputStream);
+                    activeConnection.writeAll(inputStream);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -187,28 +171,25 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
+        try (Channel channel = Connections.open()) {
             Assert.assertEquals("The message length should be zero.", 0,
-                    activeConnection.receive().length);
+                    channel.readAll().length);
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test(expected = SizeUnderflowException.class)
-    public void sizeBelowDuringReadTest() throws IOException, InterruptedException
-    {
+    public void sizeBelowDuringReadTest() throws IOException, InterruptedException {
         final byte[] bytes = new byte[10];
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0,
+                    Channel.WritableDescriptor descriptor = activeConnection.writeBegin(0,
                             bytes.length + 1);
-                    activeConnection.write(description, bytes);
-                    activeConnection.writeEnd(description);
+                    descriptor.write(bytes);
+                    descriptor.writeEnd();
                 } catch (SizeUnderflowException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -218,24 +199,21 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            channel.readAll();
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test(expected = SizeUnderflowException.class)
-    public void sizeBelowDuringWriteTest() throws IOException, InterruptedException
-    {
+    public void sizeBelowDuringWriteTest() throws IOException, InterruptedException {
         final byte[] bytes = new byte[10];
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    activeConnection.receive();
+                    channel.readAll();
                 } catch (SizeUnderflowException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -245,26 +223,23 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length + 1);
-            activeConnection.write(description, bytes);
-            activeConnection.writeEnd(description);
+        try (Channel channel = Connections.open()) {
+            Channel.WritableDescriptor descriptor = channel.writeBegin(0, bytes.length + 1);
+            descriptor.write(bytes);
+            descriptor.writeEnd();
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test(expected = SizeOverflowException.class)
-    public void sizeAboveDuringWriteTest() throws IOException, InterruptedException
-    {
+    public void sizeAboveDuringWriteTest() throws IOException, InterruptedException {
         final byte[] bytes = new byte[10];
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    activeConnection.receive();
+                    activeConnection.readAll();
                 } catch (SocketException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -274,33 +249,30 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length - 1);
-            activeConnection.write(description, bytes);
-            activeConnection.writeEnd(description);
+        try (Channel channel = Connections.open()) {
+            Channel.WritableDescriptor descriptor = channel.writeBegin(0, bytes.length - 1);
+            descriptor.write(bytes);
+            descriptor.writeEnd();
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test
-    public void sizeAboveDuringReadTest() throws IOException, InterruptedException
-    {
+    public void sizeAboveDuringReadTest() throws IOException, InterruptedException {
         final String message = "Hello, World!";
         final byte[] bytes = message.getBytes();
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
                     byte[] base = message.substring(0, message.length() - 1).getBytes();
                     byte[] end = message.substring(message.length() - 1).getBytes();
 
-                    ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length);
-                    activeConnection.write(description, base);
-                    activeConnection.write(description, end);
-                    activeConnection.writeEnd(description);
+                    Channel.WritableDescriptor descriptor = activeConnection.writeBegin(0, bytes.length);
+                    descriptor.write(base);
+                    descriptor.write(end);
+                    descriptor.writeEnd();
                 } catch (SizeOverflowException ignored) {
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -310,25 +282,22 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
+        try (Channel channel = Connections.open()) {
             Assert.assertEquals("The messages should match.", message,
-                    activeConnection.receive().getAsString());
+                    channel.readAll().getAsString());
         } finally {
             coolSocket.stop();
         }
     }
 
-    @Test(expected = DescriptionClosedException.class)
-    public void descriptionUnusableAfterFinishedFixed() throws IOException, InterruptedException
-    {
+    @Test(expected = DescriptorClosedException.class)
+    public void descriptionUnusableAfterFinishedFixed() throws IOException, InterruptedException {
         final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    activeConnection.receive();
+                    activeConnection.readAll();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -337,28 +306,25 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.writeBegin(0, bytes.length);
-            activeConnection.write(description, bytes);
-            activeConnection.writeEnd(description);
+        try (Channel channel = Connections.open()) {
+            Channel.WritableDescriptor descriptor = channel.writeBegin(0, bytes.length);
+            descriptor.write(bytes);
+            descriptor.writeEnd();
 
-            activeConnection.write(description, bytes);
+            descriptor.write(bytes);
         } finally {
             coolSocket.stop();
         }
     }
 
-    @Test(expected = DescriptionClosedException.class)
-    public void descriptionUnusableAfterFinishedChunked() throws IOException, InterruptedException
-    {
+    @Test(expected = DescriptorClosedException.class)
+    public void descriptionUnusableAfterFinishedChunked() throws IOException, InterruptedException {
         final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    activeConnection.receive();
+                    channel.readAll();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -367,28 +333,25 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.writeBegin(0);
-            activeConnection.write(description, bytes);
-            activeConnection.writeEnd(description);
+        try (Channel channel = Connections.open()) {
+            Channel.WritableDescriptor descriptor = channel.writeBegin(0);
+            descriptor.write(bytes);
+            descriptor.writeEnd();
 
-            activeConnection.write(description, bytes);
+            descriptor.write(bytes);
         } finally {
             coolSocket.stop();
         }
     }
 
-    @Test(expected = DescriptionClosedException.class)
-    public void descriptionUnusableAfterFinishedFixedRead() throws IOException, InterruptedException
-    {
+    @Test(expected = DescriptorClosedException.class)
+    public void descriptionUnusableAfterFinishedFixedRead() throws IOException, InterruptedException {
         final byte[] bytes = "I hope you could be found out of ground, our long lost brother!".getBytes();
-        CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    activeConnection.reply(0, bytes);
+                    activeConnection.writeAll(bytes);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -397,41 +360,38 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.readBegin();
+        try (Channel channel = Connections.open()) {
+            Channel.ReadableDescriptor descriptor = channel.readBegin();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             WritableByteChannel writableByteChannel = Channels.newChannel(outputStream);
 
-            while (activeConnection.read(description) != -1) {
-                writableByteChannel.write(description.byteBuffer);
+            while (descriptor.read() != -1) {
+                writableByteChannel.write(descriptor.byteBuffer);
             }
 
-            activeConnection.read(description);
+            descriptor.read();
         } finally {
             coolSocket.stop();
         }
     }
 
     @Test
-    public void largeChunkOfDataTest() throws IOException, InterruptedException
-    {
+    public void largeChunkOfDataTest() throws IOException, InterruptedException {
         final int repeat = 100000;
         final byte[] data = new byte[8192];
 
         Arrays.fill(data, (byte) 2);
 
-        final CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        final CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0,
+                    Channel.WritableDescriptor descriptor = channel.writeBegin(0,
                             data.length * repeat);
-                    while (description.hasAvailable()) {
-                        activeConnection.write(description, data);
+                    while (descriptor.hasAvailable()) {
+                        descriptor.write(data);
                     }
-                    activeConnection.writeEnd(description);
+                    descriptor.writeEnd();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -440,12 +400,12 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
+        try (Channel channel = Connections.open()) {
             long startTime = System.nanoTime();
-            ActiveConnection.Description description = activeConnection.readBegin();
+            Channel.ReadableDescriptor descriptor = channel.readBegin();
             do {
-                activeConnection.read(description);
-            } while (description.hasAvailable());
+                descriptor.read();
+            } while (descriptor.hasAvailable());
             Logger.getAnonymousLogger().fine("It took: " + ((System.nanoTime() - startTime) / 1e9));
         } finally {
             coolSocket.stop();
@@ -453,16 +413,13 @@ public class DataTransactionTest
     }
 
     @Test
-    public void fixedZeroBytesTest() throws IOException, InterruptedException
-    {
-        final CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+    public void fixedZeroBytesTest() throws IOException, InterruptedException {
+        final CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel activeConnection) {
                 try {
-                    ActiveConnection.Description description = activeConnection.writeBegin(0, 0);
-                    activeConnection.writeEnd(description);
+                    Channel.WritableDescriptor descriptor = activeConnection.writeBegin(0, 0);
+                    descriptor.writeEnd();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -471,10 +428,10 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.readBegin();
-            while (description.hasAvailable()) {
-                activeConnection.read(description);
+        try (Channel channel = Connections.open()) {
+            Channel.ReadableDescriptor descriptor = channel.readBegin();
+            while (descriptor.hasAvailable()) {
+                descriptor.read();
             }
         } finally {
             coolSocket.stop();
@@ -482,20 +439,17 @@ public class DataTransactionTest
     }
 
     @Test
-    public void customInverseExchangePointTest() throws IOException, InterruptedException
-    {
+    public void customInverseExchangePointTest() throws IOException, InterruptedException {
         final int customPoint = 28;
 
-        final CoolSocket coolSocket = new DefaultCoolSocket()
-        {
+        final CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection)
-            {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    ActiveConnection.Description description = activeConnection.readBegin(
-                            new byte[Config.DEFAULT_BUFFER_SIZE], customPoint);
-                    while (description.hasAvailable()) {
-                        activeConnection.read(description);
+                    Channel.ReadableDescriptor descriptor = channel.readBegin(
+                            Config.DEFAULT_BUFFER_SIZE, customPoint);
+                    while (descriptor.hasAvailable()) {
+                        descriptor.read();
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -505,12 +459,12 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            ActiveConnection.Description description = activeConnection.writeBegin(0, 0);
-            activeConnection.writeEnd(description);
+        try (Channel channel = Connections.open()) {
+            Channel.WritableDescriptor descriptor = channel.writeBegin(0, 0);
+            descriptor.writeEnd();
 
             Assert.assertEquals("The custom cycle points should match", customPoint,
-                    description.inverseExchangePoint);
+                    descriptor.inverseExchangePoint);
         } finally {
             coolSocket.stop();
         }
@@ -520,9 +474,9 @@ public class DataTransactionTest
     public void exchangesProtocolVersions() throws IOException, InterruptedException {
         final CoolSocket coolSocket = new DefaultCoolSocket() {
             @Override
-            public void onConnected(@NotNull ActiveConnection activeConnection) {
+            public void onConnected(@NotNull Channel channel) {
                 try {
-                    activeConnection.reply("Hello");
+                    channel.writeAll("Hello".getBytes());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -531,12 +485,12 @@ public class DataTransactionTest
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = Connections.connect()) {
-            activeConnection.receive();
+        try (Channel channel = Connections.open()) {
+            channel.readAll();
             Assert.assertTrue("The protocol version should be bigger than 0",
-                    activeConnection.getProtocolVersionOfRemote() > 0);
+                    channel.getProtocolVersion() > 0);
             Assert.assertEquals("The protocol versions should match", Config.PROTOCOL_VERSION,
-                    activeConnection.getProtocolVersionOfRemote());
+                    channel.getProtocolVersion());
         } finally {
             coolSocket.stop();
         }

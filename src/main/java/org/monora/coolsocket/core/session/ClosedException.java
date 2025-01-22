@@ -9,16 +9,14 @@ import org.jetbrains.annotations.Nullable;
  * The difference between this and closing the connection abruptly is the latter doesn't inform the other side that
  * it was requested by the peer.
  */
-public class ClosedException extends CancelledException
-{
+public class ClosedException extends CancelledException {
     /**
      * Create a new exception instance.
      *
      * @param message         The explanation for this error.
      * @param remoteCancelled True if this were requested by the remote, or false if it were requested by you.
      */
-    public ClosedException(@Nullable String message, boolean remoteCancelled)
-    {
+    public ClosedException(@Nullable String message, boolean remoteCancelled) {
         super(message, remoteCancelled);
     }
 }

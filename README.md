@@ -23,11 +23,11 @@ public class Main
         CoolSocket coolSocket = new CoolSocket(port)
         {
             @Override
-            public void onConnected(ActiveConnection activeConnection)
+            public void onConnected(ActiveConnection channel)
             {
                 try {
-                    activeConnection.reply("Hello!");
-                    System.out.println(activeConnection.receive().getAsString()); // Merhaba!
+                    channel.reply("Hello!");
+                    System.out.println(channel.receive().getAsString()); // Merhaba!
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -36,9 +36,9 @@ public class Main
 
         coolSocket.start();
 
-        try (ActiveConnection activeConnection = ActiveConnection.connect(new InetSocketAddress(port), 0)) {
-            System.out.println(activeConnection.receive().getAsString()); // "Hello!"
-            activeConnection.reply("Merhaba!");
+        try (ActiveConnection channel = ActiveConnection.connect(new InetSocketAddress(port), 0)) {
+            System.out.println(channel.receive().getAsString()); // "Hello!"
+            channel.reply("Merhaba!");
         } finally {
             coolSocket.stop();   
         }

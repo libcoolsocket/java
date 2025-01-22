@@ -9,8 +9,7 @@ import org.monora.coolsocket.core.CoolSocket;
  * The produced server executor will only be valid during one session, and after that session exits, it won't be needed
  * by CoolSocket any longer. Instead, this factory will be invoked again to produce a new server executor when needed.
  */
-public interface ServerExecutorFactory
-{
+public interface ServerExecutorFactory {
     /**
      * This method will return an {@link ServerExecutor} implementation that will handle a session.
      *
