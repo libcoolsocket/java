@@ -628,6 +628,15 @@ public class Channel implements Closeable {
         }
 
         /**
+         * Whether the descriptor is for zero-length data.
+         *
+         * @return True if the total length of the data is known and is 0.
+         */
+        protected boolean isZeroLength() {
+            return !flags.chunked() && totalLength == 0;
+        }
+
+        /**
          * Get the total length for this operation.
          * <p>
          * To check whether there is more to come, use {@link #hasAvailable()}.
@@ -793,6 +802,10 @@ public class Channel implements Closeable {
          * @throws IOException If an IO error occurs, or the input stream closes/ends before reading all the data.
          */
         public int read() throws IOException {
+            if (isZeroLength()) {
+                return 0;
+            }
+
             verify();
             boolean chunked = flags.chunked();
 
@@ -870,6 +883,10 @@ public class Channel implements Closeable {
          */
         public void write(byte[] bytes, int offset, int length)
                 throws IOException {
+            if (isZeroLength()) {
+                return;
+            }
+
             verify();
 
             checkBounds(bytes.length, offset, length);

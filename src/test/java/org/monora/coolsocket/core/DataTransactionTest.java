@@ -495,4 +495,28 @@ public class DataTransactionTest {
             coolSocket.stop();
         }
     }
+
+    @Test
+    public void exchangesZeroByteData() throws IOException, InterruptedException {
+        final CoolSocket coolSocket = new DefaultCoolSocket() {
+            @Override
+            public void onConnected(@NotNull Channel channel) {
+                try {
+                    channel.writeAll(new byte[0]);
+                    channel.readAll();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        coolSocket.start();
+
+        try (Channel channel = Connections.open()) {
+            channel.readAll();
+            channel.writeAll(new byte[0]);
+        } finally {
+            coolSocket.stop();
+        }
+    }
 }
